@@ -22,21 +22,23 @@ struct SidebarTabRow<Icon: View>: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Button(action: canReset ? reset : select) {
-                Group {
-                    if iconHovered && canReset, let resetIcon {
-                        resetIcon.foregroundStyle(iconColor)
-                    } else { icon.foregroundStyle(iconColor) }
-                }.frame(width: 24, height: 24).frame(width: 36, height: 38).contentShape(Rectangle())
-            }.help(canReset ? "Reset to Pinned URL" : tab.title)
+            // Click targets are tap gestures, not Buttons: a macOS Button keeps the mouse, so the row could never be dragged.
+            Group {
+                if iconHovered && canReset, let resetIcon {
+                    resetIcon.foregroundStyle(iconColor)
+                } else { icon.foregroundStyle(iconColor) }
+            }.frame(width: 24, height: 24).frame(width: 36, height: 38).contentShape(Rectangle())
+                .onTapGesture { canReset ? reset() : select() }
+                .help(canReset ? "Reset to Pinned URL" : tab.title)
+                .accessibilityElement().accessibilityAddTraits(.isButton)
                 .accessibilityLabel(canReset ? "Reset \(tab.title) to Pinned URL" : "Open \(tab.title)")
+                .accessibilityAction { canReset ? reset() : select() }
                 .onHover { iconHovered = $0 }
-            Button(action: select) {
-                // Recovered construction font; no ordinary-title selection override is established.
-                Text(tab.title).font(.system(size: 14, weight: .regular)).lineLimit(1)
-                    .foregroundStyle(titleColor)
-                    .frame(maxWidth: .infinity, alignment: .leading).frame(height: 38).contentShape(Rectangle())
-            }
+            Text(tab.title).font(.system(size: 14, weight: .regular)).lineLimit(1)
+                .foregroundStyle(titleColor)
+                .frame(maxWidth: .infinity, alignment: .leading).frame(height: 38).contentShape(Rectangle())
+                .onTapGesture(perform: select)
+                .accessibilityAddTraits(.isButton).accessibilityAction { select() }
             if hovered && tab.kind == .today {
                 Button(action: close) {
                     Image(systemName: "xmark").font(.system(size: 10, weight: .medium))

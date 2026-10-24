@@ -246,12 +246,13 @@ struct BrowserSidebar: View {
         let tabs = model.state.visibleTabs.filter { $0.kind == .favorite }
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 3), spacing: 7) {
             ForEach(tabs) { tab in
-                Button { model.select(tab.id) } label: {
-                    SiteIcon(controller: model.favicons, url: tab.url,
-                             profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 24)
-                        .foregroundStyle(.primary.opacity(0.75)).frame(maxWidth: .infinity).frame(height: 50)
-                        .background(Palette.color(model.state.selectedTabID == tab.id ? "SidebarItemHovered" : "SidebarItemBackground", scheme: scheme), in: RoundedRectangle(cornerRadius: 11))
-                }.buttonStyle(.plain).help(tab.title).accessibilityLabel("\(tab.title), favorite")
+                SiteIcon(controller: model.favicons, url: tab.url,
+                         profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 24)
+                    .foregroundStyle(.primary.opacity(0.75)).frame(maxWidth: .infinity).frame(height: 50)
+                    .background(Palette.color(model.state.selectedTabID == tab.id ? "SidebarItemHovered" : "SidebarItemBackground", scheme: scheme), in: RoundedRectangle(cornerRadius: 11))
+                    .contentShape(Rectangle()).onTapGesture { model.select(tab.id) }
+                    .help(tab.title).accessibilityElement().accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("\(tab.title), favorite").accessibilityAction { model.select(tab.id) }
                     .contextMenu { tabActions(tab) }.draggable(tab.id.uuidString)
                     .overlay(alignment: .leading) {
                         if dropTarget == "tab:\(tab.id)" {
@@ -283,21 +284,15 @@ struct BrowserSidebar: View {
         AnyView(VStack(alignment: .leading, spacing: 3) {
             ForEach(model.state.folders.filter { $0.spaceID == model.state.selectedSpaceID && $0.parentID == parent }) { folder in
                 VStack(alignment: .leading, spacing: 3) {
-                    Button {
-                        appearance.update { preferences in
-                            var settings = preferences.space(model.state.selectedSpaceID)
-                            if settings.collapsedFolderIDs.contains(folder.id) { settings.collapsedFolderIDs.remove(folder.id) }
-                            else { settings.collapsedFolderIDs.insert(folder.id) }
-                            preferences.spaces[model.state.selectedSpaceID] = settings
-                        }
-                    } label: {
-                        HStack(spacing: 9) {
-                            Image(systemName: closedFolders.contains(folder.id) ? "folder" : "folder.fill").frame(width: 16)
-                            Text(folder.name).lineLimit(1)
-                            Spacer()
-                            Image(systemName: closedFolders.contains(folder.id) ? "chevron.right" : "chevron.down").font(.system(size: 9))
-                        }.font(.system(size: 13)).padding(.horizontal, 10).frame(height: 34).contentShape(Rectangle())
-                    }.buttonStyle(.plain)
+                    HStack(spacing: 9) {
+                        Image(systemName: closedFolders.contains(folder.id) ? "folder" : "folder.fill").frame(width: 16)
+                        Text(folder.name).lineLimit(1)
+                        Spacer()
+                        Image(systemName: closedFolders.contains(folder.id) ? "chevron.right" : "chevron.down").font(.system(size: 9))
+                    }.font(.system(size: 13)).padding(.horizontal, 10).frame(height: 34).contentShape(Rectangle())
+                    .onTapGesture { toggleFolder(folder.id) }
+                    .accessibilityElement(children: .combine).accessibilityAddTraits(.isButton)
+                    .accessibilityAction { toggleFolder(folder.id) }
                     .contextMenu {
                         Button("Rename") { renameText = folder.name; renameTarget = .folder(folder.id) }
                         Button("New Nested Folder") { model.addFolder("New Folder", parent: folder.id) }
@@ -322,6 +317,15 @@ struct BrowserSidebar: View {
             }
             ForEach(model.state.visibleTabs.filter { $0.kind == .pinned && $0.folderID == parent }) { tab in sidebarItem(tab) }
         })
+    }
+
+    private func toggleFolder(_ id: UUID) {
+        appearance.update { preferences in
+            var settings = preferences.space(model.state.selectedSpaceID)
+            if settings.collapsedFolderIDs.contains(id) { settings.collapsedFolderIDs.remove(id) }
+            else { settings.collapsedFolderIDs.insert(id) }
+            preferences.spaces[model.state.selectedSpaceID] = settings
+        }
     }
 
     private func isRenamingTab(_ id: UUID) -> Bool {
@@ -394,18 +398,17 @@ struct BrowserSidebar: View {
 
     private func splitChip(_ tab: BrowserTab) -> some View {
         let focused = model.state.selectedTabID == tab.id
-        return Button { model.select(tab.id) } label: {
-            HStack(spacing: 7) {
+        return HStack(spacing: 7) {
                 SiteIcon(controller: model.favicons, url: tab.url,
                          profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 14)
                 Text(tab.title).font(.system(size: 13)).lineLimit(1).truncationMode(.tail)
             }
-            .padding(.horizontal, 9).frame(maxWidth: .infinity, alignment: .leading).frame(height: 32)
-            .background(Palette.color(focused ? "TabCellBackgroundCurrent" : "SidebarItemBackground", scheme: scheme),
-                        in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain).foregroundStyle(.primary.opacity(focused ? 0.9 : 0.75)).help(tab.title)
+        .padding(.horizontal, 9).frame(maxWidth: .infinity, alignment: .leading).frame(height: 32)
+        .background(Palette.color(focused ? "TabCellBackgroundCurrent" : "SidebarItemBackground", scheme: scheme),
+                    in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .contentShape(Rectangle()).onTapGesture { model.select(tab.id) }
+        .accessibilityElement(children: .combine).accessibilityAddTraits(.isButton).accessibilityAction { model.select(tab.id) }
+        .foregroundStyle(.primary.opacity(focused ? 0.9 : 0.75)).help(tab.title)
         .contextMenu {
             Button("Separate from Split View") { model.stateUpdate { _ = $0.removeFromSplit(tab.id) } }
             Divider()
