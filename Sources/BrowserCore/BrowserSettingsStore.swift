@@ -52,6 +52,15 @@ public enum AutoArchiveAge: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// A site's answer for one device: ask each time (the default), or always allow or block.
+public enum SiteDecision: String, Codable, CaseIterable, Sendable {
+    case ask, allow, block
+}
+
+public enum SiteDevice: String, Codable, CaseIterable, Sendable {
+    case camera, microphone
+}
+
 public struct BrowserSettings: Codable, Equatable, Sendable {
     public private(set) var schemaVersion = 1
     public var searchEngine = SearchEngine.duckDuckGo
@@ -69,8 +78,29 @@ public struct BrowserSettings: Codable, Equatable, Sendable {
     private var boosts: Bool?
     private var haptics: Bool?
     private var fullURL: Bool?
+    private var sitePermissions: [String: [SiteDevice: SiteDecision]]?
 
     public init() {}
+
+    public func permission(for device: SiteDevice, host: String) -> SiteDecision {
+        sitePermissions?[host.lowercased()]?[device] ?? .ask
+    }
+
+    public mutating func setPermission(_ decision: SiteDecision, for device: SiteDevice, host: String) {
+        var all = sitePermissions ?? [:]
+        var site = all[host.lowercased()] ?? [:]
+        site[device] = decision == .ask ? nil : decision
+        all[host.lowercased()] = site.isEmpty ? nil : site
+        sitePermissions = all.isEmpty ? nil : all
+    }
+
+    /// One answer for a page asking for camera and/or microphone: block if either is blocked, allow only when
+    /// every requested device is allowed, otherwise ask.
+    public func mediaDecision(forHost host: String, camera: Bool, microphone: Bool) -> SiteDecision {
+        let decisions = (camera ? [permission(for: .camera, host: host)] : []) + (microphone ? [permission(for: .microphone, host: host)] : [])
+        if decisions.contains(.block) { return .block }
+        return !decisions.isEmpty && decisions.allSatisfy { $0 == .allow } ? .allow : .ask
+    }
 
     public func searchEngine(forProfile id: UUID) -> SearchEngine { searchEngineByProfile?[id] ?? searchEngine }
 
