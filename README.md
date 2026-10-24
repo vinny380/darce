@@ -60,10 +60,16 @@
   </tr>
   <tr>
     <td valign="top">
+      <h3>🪟 Mini windows</h3>
+      Like Little Arc. Make D'arce your default browser and links from other apps open in a small window; one click moves the page into your sidebar. <kbd>⌥</kbd><kbd>⌘</kbd><kbd>N</kbd> opens one any time.
+    </td>
+    <td valign="top">
       <h3>👤 Profiles &amp; private windows</h3>
       Separate cookies and logins per profile. Private windows keep nothing.
     </td>
-    <td valign="top">
+  </tr>
+  <tr>
+    <td valign="top" colspan="2">
       <h3>🪶 Native and light</h3>
       Built on WebKit and SwiftUI. The download is about 2&nbsp;MB.
     </td>
@@ -101,6 +107,7 @@ The same keys as Arc, so muscle memory carries over.
 | <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>↑</kbd> <kbd>↓</kbd> | Previous / next tab | <kbd>⌃</kbd> <kbd>⇧</kbd> <kbd>-</kbd> | Close the split view pane |
 | <kbd>⌘</kbd> <kbd>1</kbd> … <kbd>9</kbd> | Go to tab 1–8 / last tab | <kbd>⌘</kbd> <kbd>S</kbd> | Show or hide the sidebar |
 | <kbd>⌘</kbd> <kbd>D</kbd> | Pin or unpin | <kbd>⌘</kbd> <kbd>N</kbd> / <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>N</kbd> | New window / private window |
+| <kbd>⌘</kbd> <kbd>O</kbd> | Mini window → open in D'arce | <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>N</kbd> | New mini window |
 | <kbd>⌘</kbd> <kbd>W</kbd> | Archive the tab | <kbd>⌘</kbd> <kbd>Y</kbd> | History |
 | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>T</kbd> | Reopen the last archived tab | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>J</kbd> | Downloads |
 | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>K</kbd> | Clear all Today tabs | <kbd>⌘</kbd> <kbd>F</kbd> | Find in page |
