@@ -38,6 +38,7 @@ final class BrowserWindows: ObservableObject {
     }
 
     func model(for window: NSWindow) -> BrowserModel? { entry(for: window)?.model }
+    var models: [BrowserModel] { entries.values.map(\.model) }
 
     private func entry(for window: NSWindow) -> Entry? {
         var parent = window

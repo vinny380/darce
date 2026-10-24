@@ -27,6 +27,7 @@ struct BrowserPrototypeApp: App {
         fixtureBase = value("--network-smoke").flatMap(URL.init(string:))
         networkPhase = value("--network-phase") ?? "seed"
         let ephemeral = isSmoke && value("--network-smoke") == nil
+        if #available(macOS 15.4, *) { ExtensionManager.shared = ExtensionManager(directory: directory) }
         _model = StateObject(wrappedValue: BrowserModel(directory: directory, ephemeralWebsiteData: ephemeral,
                                                        downloadsDirectory: isSmoke ? directory.appendingPathComponent("downloads") : nil))
         windowLifecycleOutput = value("--window-lifecycle-output").map { URL(fileURLWithPath: $0) }

@@ -125,6 +125,9 @@ final class BrowserModel: ObservableObject {
         }
         if previous.selectedProfileID != state.selectedProfileID { closePeek() }
         if recentSwitch == nil, candidate.selectedTabID != previous.selectedTabID { noteRecent(candidate.selectedTabID) }
+        if candidate.selectedTabID != previous.selectedTabID, let id = candidate.selectedTabID, let page = pages[id] {
+            Extensions.activated(page, previous: previous.selectedTabID.flatMap { pages[$0] })
+        }
     }
 
     private func noteRecent(_ id: UUID?) {
@@ -160,6 +163,7 @@ final class BrowserModel: ObservableObject {
     }
 
     private func teardown(_ page: BrowserPage) {
+        Extensions.closed(page)
         page.onNavigate = nil; page.onVisit = nil; page.onFinish = nil
         page.onNavigationStateChange = nil
         page.onNewTab = nil; page.onDownload = nil; page.onLink = nil; page.onModifiedLink = nil; page.onFocus = nil
@@ -171,6 +175,10 @@ final class BrowserModel: ObservableObject {
     }
 
     func dataStore(for profileID: UUID) -> WKWebsiteDataStore { workspace.dataStore(for: profileID) }
+
+    /// Pages already created, in sidebar order; extensions see only these (never forcing every tab to load).
+    var loadedPagesInOrder: [BrowserPage] { state.visibleTabs.compactMap { pages[$0.id] } }
+    func loadedPage(_ id: UUID) -> BrowserPage? { pages[id] }
 
     // Read only: row rendering cannot create a WebKit page or borrow stale ownership.
     func canResetSidebarTab(_ id: UUID, isEditing: Bool = false) -> Bool {
@@ -187,7 +195,9 @@ final class BrowserModel: ObservableObject {
               let tab = state.tabs.first(where: { $0.id == id && $0.kind != .archived }) else { return nil }
         if let page = pages[id] { return page }
         guard let profileID = state.profileID(forTab: id) else { return nil }
-        let page = BrowserPage(url: tab.url, dataStore: dataStore(for: profileID))
+        let page = BrowserPage(url: tab.url, dataStore: dataStore(for: profileID), extensions: true)
+        page.owner = self
+        page.tabID = id
         page.webView.pageZoom = settings.state.defaultZoom
         page.onNavigationStateChange = { [weak self, weak page] in
             guard let self, let page, !self.isWindowClosed, self.pages[id] === page,
@@ -236,6 +246,7 @@ final class BrowserModel: ObservableObject {
         page.applyBoosts(controller: boosts, profileID: profileID)
         pages[id] = page
         pageProfiles[id] = profileID
+        Extensions.opened(page)
         return page
     }
 
@@ -338,7 +349,7 @@ final class BrowserModel: ObservableObject {
         closePeek()
         peekURL = url
         let profileID = state.selectedProfileID
-        let page = BrowserPage(url: url, dataStore: dataStore(for: profileID))
+        let page = BrowserPage(url: url, dataStore: dataStore(for: profileID), extensions: true)
         page.webView.pageZoom = settings.state.defaultZoom
         page.onNewTab = { [weak self] in self?.open($0) }
         page.onNavigate = { [weak self] url, _ in if let url { self?.peekURL = url } }
@@ -487,12 +498,19 @@ final class BrowserPage: NSObject, ObservableObject, WKNavigationDelegate, WKUID
     /// A link clicked with modifier keys held (⌥⌘ = mini window, ⇧ = Peek); true when handled.
     var onModifiedLink: ((URL, NSEvent.ModifierFlags) -> Bool)?
     var onFocus: (() -> Void)?
+    /// Whether extensions run in this page (never in private windows).
+    let joinsExtensions: Bool
+    /// The window and sidebar tab this page belongs to, for extensions' tabs and windows APIs.
+    weak var owner: BrowserModel?
+    var tabID: UUID?
     private var titleObservation: NSKeyValueObservation?
     private var navigationObservations: [NSKeyValueObservation] = []
 
-    init(url: URL, dataStore: WKWebsiteDataStore) {
+    init(url: URL, dataStore: WKWebsiteDataStore, extensions: Bool = false) {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = dataStore
+        joinsExtensions = extensions
+        if extensions { Extensions.attach(configuration) }
         webView = FocusReportingWebView(frame: .zero, configuration: configuration)
         super.init()
         (webView as? FocusReportingWebView)?.onPaneFocus = { [weak self] in self?.onFocus?() }
@@ -506,6 +524,7 @@ final class BrowserPage: NSObject, ObservableObject, WKNavigationDelegate, WKUID
             Task { @MainActor [weak self] in
                 guard let self, let title, !title.isEmpty else { return }
                 self.onNavigate?(nil, title)
+                Extensions.navigated(self)
                 if !self.loading, let url = self.webView.url, ["http", "https"].contains(url.scheme ?? "") {
                     self.onVisit?(url, title)
                 }
@@ -564,7 +583,7 @@ final class BrowserPage: NSObject, ObservableObject, WKNavigationDelegate, WKUID
         let scheme = url.scheme?.lowercased() ?? ""
         if navigationAction.shouldPerformDownload { decisionHandler(.download); return }
         // Subframe/data URLs remain WebKit's responsibility; top-level external protocols need a later explicit handoff.
-        if navigationAction.targetFrame?.isMainFrame != false && !["http", "https", "about"].contains(scheme) {
+        if navigationAction.targetFrame?.isMainFrame != false && !["http", "https", "about", "webkit-extension"].contains(scheme) {
             failure = "This prototype does not open \(scheme) links."
             decisionHandler(.cancel)
             return

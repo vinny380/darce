@@ -22,6 +22,7 @@ struct BrowserSidebar: View {
     @State private var draggingTab: UUID?
     @State private var headerHovered = false
     @State private var windowControlsVisible = false
+    @State private var showCreate = false
     @State private var rowWidth: CGFloat = 220
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -53,15 +54,7 @@ struct BrowserSidebar: View {
                 }
                 WindowControlsVisibility(visible: windowControlsVisible)
             }
-            Button { model.commandMode = .location } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: model.state.selectedTab == nil ? "magnifyingglass" : "globe").font(.system(size: 10))
-                    Text((model.settings.state.showFullURL ? model.state.selectedTab?.url.absoluteString : model.state.selectedTab?.url.host) ?? "Search or Enter URL…").font(.system(size: 12, weight: .medium)).lineLimit(1)
-                    Spacer(minLength: 0)
-                    Image(systemName: "ellipsis").font(.system(size: 11))
-                }.padding(.horizontal, 11).frame(height: 35)
-                    .background(Palette.color("SidebarItemBackground", scheme: scheme), in: RoundedRectangle(cornerRadius: 9))
-            }.buttonStyle(.plain).foregroundStyle(.primary.opacity(0.65)).accessibilityLabel("Address and search")
+            AddressBar(model: model)
             favorites
             ScrollView {
                 VStack(alignment: .leading, spacing: 3) {
@@ -161,24 +154,16 @@ struct BrowserSidebar: View {
                     } isTargeted: { targeting("space:\(space.id)")($0) }
                 }
                 Spacer(minLength: 4)
-                Menu {
-                    Button("New Tab") { model.commandMode = .newTab }
-                    Button("New Folder") { showNewFolder = true }
-                    Button("New Space") { showNewSpace = true }
-                    Divider()
-                    Button("Archived Tabs") { showArchive = true }
-                    Button("History") { model.panel = .history }
-                    Button("Downloads") { model.panel = .downloads }
-                    Button("Profiles") { model.panel = .profiles }
-                    Button("Notes & Easels") { model.panel = .documents }
-                    Button("Customize Space…") { model.panel = .appearance }
-                    Button("Boosts…") { model.panel = .boosts }.disabled(model.state.selectedTab?.url.host == nil)
-                    Button("Hide Element with Boost") { model.pickBoostElement() }.disabled(model.state.selectedTab?.url.host == nil)
-                    Divider()
-                    Button("Import Bookmarks…") { model.importBookmarks() }
-                    Button("Export Bookmarks…") { model.exportBookmarks() }
-                } label: { Image(systemName: "plus").frame(width: 22, height: 30) }
-                    .menuIndicator(.hidden).menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Create")
+                // Like Arc: "+" turns into "×" while its create panel is open.
+                Button { withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) { showCreate.toggle() } } label: {
+                    Image(systemName: "plus").font(.system(size: 14, weight: .medium))
+                        .rotationEffect(.degrees(showCreate ? 45 : 0)).frame(width: 30, height: 30).contentShape(Rectangle())
+                }
+                .accessibilityLabel(showCreate ? "Close" : "Create")
+                .popover(isPresented: $showCreate, arrowEdge: .top) {
+                    CreatePanel(model: model, close: { showCreate = false },
+                                newSpace: { showNewSpace = true }, newFolder: { showNewFolder = true })
+                }
             }.buttonStyle(.plain).foregroundStyle(.primary.opacity(0.7)).padding(.top, 4)
         }
         .padding(.horizontal, 8).padding(.bottom, 10)

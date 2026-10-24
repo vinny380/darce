@@ -70,8 +70,8 @@
   </tr>
   <tr>
     <td valign="top" colspan="2">
-      <h3>🪶 Native and light</h3>
-      Built on WebKit and SwiftUI. The download is about 2&nbsp;MB.
+      <h3>🧩 Extensions</h3>
+      Most Chrome extensions run: paste a Chrome Web Store link, or open an extension's store page and click <b>Add to D'arce</b> in site controls. Uses WebKit's Web Extensions engine (macOS 15.4+). Built on WebKit and SwiftUI; the download is about 2&nbsp;MB.
     </td>
   </tr>
 </table>
@@ -132,7 +132,8 @@ The same keys as Arc, so muscle memory carries over.
 - [x] Space themes
 - [x] Boosts, Notes, Easels
 - [x] Profiles and private windows
-- [ ] Chromium engine and Chrome extensions
+- [x] Chrome Web Store extensions (macOS 15.4+)
+- [ ] Chromium engine
 - [ ] Sync between Macs
 - [ ] Passwords and passkeys
 - [ ] Restore windows on relaunch

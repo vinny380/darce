@@ -159,7 +159,7 @@ final class MiniBrowser: ObservableObject {
         if let page { page.webView.load(URLRequest(url: url)); return }
         guard let model else { return }
         let profileID = profileID
-        let page = BrowserPage(url: url, dataStore: model.dataStore(for: profileID))
+        let page = BrowserPage(url: url, dataStore: model.dataStore(for: profileID), extensions: true)
         page.webView.pageZoom = model.settings.state.defaultZoom
         page.onNavigate = { [weak self] url, title in
             if let url { self?.currentURL = url }
