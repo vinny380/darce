@@ -329,6 +329,22 @@ public struct BrowserState: Codable, Equatable, Sendable {
         if let replacement { selectTab(replacement, now: now) }
     }
 
+    /// ⌘Z after closing tabs: each tab still in the archive goes back exactly as it was (section, folder, pin URL,
+    /// position), and the last one is selected. Tabs restored or changed by hand since then are left alone.
+    public mutating func undoClose(_ snapshots: [BrowserTab], now: Date = Date()) {
+        var last: BrowserTab?
+        for snapshot in snapshots where snapshot.kind != .archived {
+            guard let index = tabs.firstIndex(where: { $0.id == snapshot.id }), tabs[index].kind == .archived else { continue }
+            var tab = snapshot
+            if let folder = tab.folderID, !folders.contains(where: { $0.id == folder }) { tab.folderID = nil }
+            if !spaces.contains(where: { $0.id == tab.spaceID }) { tab.spaceID = selectedSpaceID }
+            tab.archivedAt = nil
+            tabs[index] = tab
+            last = tab
+        }
+        if let last { selectTab(last.id, now: now) }
+    }
+
     public mutating func restoreTab(_ id: UUID, select: Bool = true, now: Date = Date()) {
         guard let index = tabs.firstIndex(where: { $0.id == id }), tabs[index].kind == .archived else { return }
         tabs[index].kind = .today
