@@ -20,6 +20,7 @@ struct BrowserSidebar: View {
     @State private var dropTarget: String?
     /// The tab being dragged from this sidebar, so drop previews can show it.
     @State private var draggingTab: UUID?
+    @State private var headerHovered = false
     @State private var rowWidth: CGFloat = 220
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -61,14 +62,23 @@ struct BrowserSidebar: View {
                         Text(model.state.spaces.first { $0.id == model.state.selectedSpaceID }?.name ?? "Space")
                             .font(.system(size: 12, weight: .semibold))
                         Spacer()
-                        Button {
-                            appearance.update { $0.spaces[model.state.selectedSpaceID, default: SpaceAppearance()].pinnedCollapsed.toggle() }
-                        } label: {
-                            Image(systemName: pinnedExpanded ? "chevron.down" : "chevron.right").font(.system(size: 10, weight: .semibold))
-                        }.buttonStyle(.plain).accessibilityLabel(pinnedExpanded ? "Collapse Pinned Tabs" : "Expand Pinned Tabs")
+                        if let space = model.state.spaces.first(where: { $0.id == model.state.selectedSpaceID }) {
+                            Menu { spaceActions(space) } label: { Image(systemName: "ellipsis").font(.system(size: 11, weight: .semibold)) }
+                                .menuIndicator(.hidden).menuStyle(.borderlessButton).fixedSize()
+                                .opacity(headerHovered ? 1 : 0).accessibilityLabel("Space options")
+                        }
+                        Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
+                            .rotationEffect(.degrees(pinnedExpanded ? 90 : 0))
                     }.padding(.horizontal, 10).padding(.top, 13).padding(.bottom, 9).foregroundStyle(.primary.opacity(0.65))
-                    .background(dropTarget == "pinned" ? Color.accentColor.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 9))
+                    .background(dropTarget == "pinned" ? Color.accentColor.opacity(0.15)
+                                : headerHovered ? Palette.color("SidebarItemHovered", scheme: scheme) : .clear,
+                                in: RoundedRectangle(cornerRadius: 9))
                     .contentShape(Rectangle())
+                    // The whole row toggles, like Arc; the arrow is only the indicator.
+                    .onTapGesture { togglePinned() }
+                    .onHover { headerHovered = $0 }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction(named: pinnedExpanded ? "Collapse Pinned Tabs" : "Expand Pinned Tabs") { togglePinned() }
                     .dropDestination(for: String.self) { values, _ in
                         if let folder = draggedFolder(values) {
                             var moved = false
@@ -80,7 +90,10 @@ struct BrowserSidebar: View {
                     .contextMenu {
                         if let space = model.state.spaces.first(where: { $0.id == model.state.selectedSpaceID }) { spaceActions(space) }
                     }
-                    if pinnedExpanded { folderContents(parent: nil) }
+                    // Pinned tabs slide down from behind the header; everything below glides to make room.
+                    VStack(spacing: 0) {
+                        if pinnedExpanded { folderContents(parent: nil).transition(revealTransition) }
+                    }.clipped()
                     HStack(spacing: 8) {
                         Rectangle().fill(.primary.opacity(0.12)).frame(height: 1)
                         if model.state.visibleTabs.contains(where: { $0.kind == .today }) {
@@ -293,7 +306,8 @@ struct BrowserSidebar: View {
                         Image(systemName: closedFolders.contains(folder.id) ? "folder" : "folder.fill").frame(width: 16)
                         Text(folder.name).lineLimit(1)
                         Spacer()
-                        Image(systemName: closedFolders.contains(folder.id) ? "chevron.right" : "chevron.down").font(.system(size: 9))
+                        Image(systemName: "chevron.right").font(.system(size: 9))
+                            .rotationEffect(.degrees(closedFolders.contains(folder.id) ? 0 : 90))
                     }.font(.system(size: 13)).padding(.horizontal, 10).frame(height: 34).contentShape(Rectangle())
                     .onTapGesture { toggleFolder(folder.id) }
                     .accessibilityElement(children: .combine).accessibilityAddTraits(.isButton)
@@ -317,14 +331,30 @@ struct BrowserSidebar: View {
                         return model.place(id, kind: .pinned, folder: folder.id)
                     } isTargeted: { targeting("folder:\(folder.id)")($0) }
                     .background(dropTarget == "folder:\(folder.id)" ? Color.accentColor.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 9))
-                    if !closedFolders.contains(folder.id) { folderContents(parent: folder.id).padding(.leading, 14) }
+                    VStack(spacing: 0) {
+                        if !closedFolders.contains(folder.id) { folderContents(parent: folder.id).padding(.leading, 14).transition(revealTransition) }
+                    }.clipped()
                 }
             }
             ForEach(model.state.visibleTabs.filter { $0.kind == .pinned && $0.folderID == parent }) { tab in sidebarItem(tab) }
         })
     }
 
+    private var revealTransition: AnyTransition {
+        reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity)
+    }
+
+    private func togglePinned() {
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) {
+            appearance.update { $0.spaces[model.state.selectedSpaceID, default: SpaceAppearance()].pinnedCollapsed.toggle() }
+        }
+    }
+
     private func toggleFolder(_ id: UUID) {
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) { toggleFolderState(id) }
+    }
+
+    private func toggleFolderState(_ id: UUID) {
         appearance.update { preferences in
             var settings = preferences.space(model.state.selectedSpaceID)
             if settings.collapsedFolderIDs.contains(id) { settings.collapsedFolderIDs.remove(id) }
