@@ -173,10 +173,14 @@ struct BrowserSidebar: View {
                 .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button("Cancel", role: .cancel) { renameTarget = nil }
         }
-        .confirmationDialog(removalTitle, isPresented: Binding(get: { removalTarget != nil }, set: { if !$0 { removalTarget = nil } }), titleVisibility: .visible) {
-            Button("Remove", role: .destructive) { submitRemoval() }
-            Button("Cancel", role: .cancel) { removalTarget = nil }
-        } message: { Text(removalMessage) }
+        .onChange(of: removalTarget != nil) { _, asking in
+            guard asking else { return }
+            let symbol = if case .folder = removalTarget { "folder" } else { "rectangle.stack" }
+            DialogCenter.shared.present(DialogRequest(title: removalTitle, message: removalMessage, symbol: symbol, actions: [
+                .init(title: "Cancel", role: .cancel) { removalTarget = nil },
+                .init(title: "Remove", role: .destructive) { submitRemoval() },
+            ]), in: model)
+        }
     }
 
     private var renameTitle: String {

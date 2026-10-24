@@ -31,3 +31,18 @@ func runDeveloperModeSmoke(model: BrowserModel) -> [String: Bool] {
     checks["web_inspector_reachable"] = WebInspector.isAvailable(page.webView)
     return checks
 }
+
+/// Arc-style dialog contract: shows over the window that asked, and a button runs its action and closes it.
+@MainActor
+func runDialogSmoke(model: BrowserModel) -> [String: Bool] {
+    var cancelled = false
+    DialogCenter.shared.present(DialogRequest(title: "Smoke?", actions: [
+        .init(title: "Cancel", role: .cancel) { cancelled = true },
+        .init(title: "OK", role: .primary) {},
+    ]), in: model)
+    var checks = ["dialog_shows_over_its_window": DialogCenter.shared.current != nil && DialogCenter.shared.host === model]
+    if let cancel = DialogCenter.shared.current?.actions.first(where: { $0.role == .cancel }) { DialogCenter.shared.perform(cancel) }
+    checks["dialog_button_runs_and_closes"] = cancelled && DialogCenter.shared.current == nil
+    checks["quit_confirmation_off_in_smoke_runs"] = !QuitConfirmation.enabled
+    return checks
+}

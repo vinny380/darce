@@ -33,6 +33,7 @@ struct BrowserPrototypeApp: App {
         windowLifecycleOutput = value("--window-lifecycle-output").map { URL(fileURLWithPath: $0) }
         smokeOutput = value("--smoke-output").map { URL(fileURLWithPath: $0) }
         if !isSmoke { ExternalLinkHandler.shared.install() }
+        QuitConfirmation.enabled = !isSmoke
     }
 
     var body: some Scene {
@@ -263,6 +264,7 @@ struct BrowserWindow: View {
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
             if model.commandMode != nil { BrowserCommandBar(model: model).id(model.commandMode == .location ? "location" : "new-tab") }
+            DialogOverlay(center: .shared, model: model)
         }
         .background {
             ZStack {

@@ -13,7 +13,6 @@ struct BoostPanel: View {
     @State private var history: [BrowserBoost?] = []
     @State private var renaming = false
     @State private var newName = ""
-    @State private var confirmingDelete = false
     @State private var showingAdvanced = false
 
     private var boost: BrowserBoost? { boosts.boosts.first { $0.profileID == profileID && $0.host == host } }
@@ -72,14 +71,19 @@ struct BoostPanel: View {
             Button("Rename") { let name = newName.trimmingCharacters(in: .whitespaces); if !name.isEmpty { edit { $0.name = name } } }
             Button("Cancel", role: .cancel) {}
         }
-        .alert("Delete this Boost?", isPresented: $confirmingDelete) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
-                if let boost { boosts.remove(id: boost.id, profileID: profileID) }
-                history = []
+    }
+
+    /// Arc's own wording and puzzle-piece dialog.
+    private func confirmDelete() {
+        guard let boost else { return }
+        let boosts = boosts, model = model, profileID = profileID
+        DialogCenter.shared.present(DialogRequest(title: "Delete this Boost?", message: "This can't be undone.", symbol: "puzzlepiece.extension", actions: [
+            .init(title: "Cancel", role: .cancel) {},
+            .init(title: "Delete", role: .destructive) {
+                boosts.remove(id: boost.id, profileID: profileID)
                 model.boostPanelOpen = false
-            }
-        } message: { Text("This can't be undone.") }
+            },
+        ]), in: model)
     }
 
     private var header: some View {
@@ -93,7 +97,7 @@ struct BoostPanel: View {
                 Button("Reset all Edits") { edit { $0.colors = nil; $0.font = nil; $0.textCase = nil; $0.textSize = nil; $0.hiddenSelectors = [] } }
                     .disabled(boost == nil)
                 Divider()
-                Button("Delete this Boost…", role: .destructive) { confirmingDelete = true }.disabled(boost == nil)
+                Button("Delete this Boost…", role: .destructive) { confirmDelete() }.disabled(boost == nil)
             } label: {
                 HStack(spacing: 6) {
                     Text(boost?.name ?? "My Boost").font(.system(size: 15, weight: .semibold))

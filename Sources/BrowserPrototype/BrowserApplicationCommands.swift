@@ -16,6 +16,9 @@ struct BrowserApplicationCommands: Commands {
 
     var body: some Commands {
             BrowserNavigationCommands(model: activeModel)
+            CommandGroup(replacing: .appTermination) {
+                Button("Quit D'arce") { QuitConfirmation.request(primary: model) }.keyboardShortcut("q")
+            }
             CommandGroup(replacing: .newItem) {
                 Button("New Window") {
                     normalWindows.open(workspace: activeModel.workspace, selection: BrowserWindowSelection(state: activeModel.state))

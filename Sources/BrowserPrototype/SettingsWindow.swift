@@ -43,6 +43,7 @@ private struct GeneralSettings: View {
                 Picker("Search engine", selection: settings.binding(\.searchEngine)) {
                     ForEach(SearchEngine.allCases, id: \.self) { Text($0.name).tag($0) }
                 }
+                Toggle("Warn before quitting", isOn: settings.binding(\.warnBeforeQuitting))
                 LabeledContent("Default zoom") {
                     HStack {
                         // Snaps to 5% in code: a stepped Slider would draw 55 tick marks.
