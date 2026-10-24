@@ -1,0 +1,5 @@
+.build/
+.local/
+artifacts/
+dist/
+.DS_Store

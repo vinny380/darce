@@ -1,0 +1,627 @@
+{
+  "scope": "Independent numeric expectations for finite unit-range sRGB input only.",
+  "oracleDependencies": "Python stdlib decimal (precision60) and colorsys; no product imports or NSColor conversions",
+  "cases": [
+    {
+      "name": "black",
+      "primarySRGB": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "expected": {
+        "lightTitle": [
+          0.0,
+          0.0,
+          0.0,
+          1
+        ],
+        "darkTitle": [
+          0.85,
+          0.85,
+          0.85,
+          1
+        ],
+        "lightMaxContrast": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "darkMaxContrast": [
+          0.94,
+          0.94,
+          0.94,
+          1.0
+        ]
+      },
+      "darkVariantDiagnostics": {
+        "steps": 0,
+        "lastLuminance": "0.00",
+        "previousLuminance": null
+      },
+      "lightVariantDiagnostics": {
+        "steps": 94,
+        "lastLuminance": "0.868899386672552993263738246790400618413174909469169999487230",
+        "previousLuminance": "0.848088257494861441326489647828191624878452765111605850822059"
+      },
+      "method": "Decimal analytic grayscale or pure-primary HSL path",
+      "suggestedAbsoluteTolerance": 1e-10
+    },
+    {
+      "name": "white",
+      "primarySRGB": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "expected": {
+        "lightTitle": [
+          0.102,
+          0.102,
+          0.102,
+          1
+        ],
+        "darkTitle": [
+          0.901,
+          0.901,
+          0.901,
+          1
+        ],
+        "lightMaxContrast": [
+          0.34,
+          0.34,
+          0.34,
+          1.0
+        ],
+        "darkMaxContrast": [
+          0.97,
+          0.97,
+          0.97,
+          1.0
+        ]
+      },
+      "darkVariantDiagnostics": {
+        "steps": 66,
+        "lastLuminance": "0.0946296265945691492807752047216102173868445849942859489194932",
+        "previousLuminance": "0.100481509937723285005459094164020961959441808781462337401845"
+      },
+      "lightVariantDiagnostics": {
+        "steps": 3,
+        "lastLuminance": "0.933106841823867895218346674356605699278834452085359511104704",
+        "previousLuminance": "0.955104599233778868402591887275978071835842656985715214735379"
+      },
+      "method": "Decimal analytic grayscale or pure-primary HSL path",
+      "suggestedAbsoluteTolerance": 1e-10
+    },
+    {
+      "name": "mid_gray",
+      "primarySRGB": [
+        0.5,
+        0.5,
+        0.5,
+        1.0
+      ],
+      "expected": {
+        "lightTitle": [
+          0.102,
+          0.102,
+          0.102,
+          1
+        ],
+        "darkTitle": [
+          0.901,
+          0.901,
+          0.901,
+          1
+        ],
+        "lightMaxContrast": [
+          0.34,
+          0.34,
+          0.34,
+          1.0
+        ],
+        "darkMaxContrast": [
+          0.94,
+          0.94,
+          0.94,
+          1.0
+        ]
+      },
+      "darkVariantDiagnostics": {
+        "steps": 16,
+        "lastLuminance": "0.0946296265945691492807752047216102173868445849942859489194932",
+        "previousLuminance": "0.100481509937723285005459094164020961959441808781462337401845"
+      },
+      "lightVariantDiagnostics": {
+        "steps": 44,
+        "lastLuminance": "0.868899386672552993263738246790400618413174909469169999487230",
+        "previousLuminance": "0.848088257494861441326489647828191624878452765111605850822059"
+      },
+      "method": "Decimal analytic grayscale or pure-primary HSL path",
+      "suggestedAbsoluteTolerance": 1e-10
+    },
+    {
+      "name": "dark_gray_unchanged",
+      "primarySRGB": [
+        0.34,
+        0.34,
+        0.34,
+        1.0
+      ],
+      "expected": {
+        "lightTitle": [
+          0.102,
+          0.102,
+          0.102,
+          1
+        ],
+        "darkTitle": [
+          0.901,
+          0.901,
+          0.901,
+          1
+        ],
+        "lightMaxContrast": [
+          0.34,
+          0.34,
+          0.34,
+          1.0
+        ],
+        "darkMaxContrast": [
+          0.94,
+          0.94,
+          0.94,
+          1.0
+        ]
+      },
+      "darkVariantDiagnostics": {
+        "steps": 0,
+        "lastLuminance": "0.0946296265945691492807752047216102173868445849942859489194932",
+        "previousLuminance": null
+      },
+      "lightVariantDiagnostics": {
+        "steps": 60,
+        "lastLuminance": "0.868899386672552993263738246790400618413174909469169999487230",
+        "previousLuminance": "0.848088257494861441326489647828191624878452765111605850822059"
+      },
+      "method": "Decimal analytic grayscale or pure-primary HSL path",
+      "suggestedAbsoluteTolerance": 1e-10
+    },
+    {
+      "name": "dark_gray_crosses_once",
+      "primarySRGB": [
+        0.35,
+        0.35,
+        0.35,
+        1.0
+      ],
+      "expected": {
+        "lightTitle": [
+          0.102,
+          0.102,
+          0.102,
+          1
+        ],
+        "darkTitle": [
+          0.901,
+          0.901,
+          0.901,
+          1
+        ],
+        "lightMaxContrast": [
+          0.34,
+          0.34,
+          0.34,
+          1.0
+        ],
+        "darkMaxContrast": [
+          0.94,
+          0.94,
+          0.94,
+          1.0
+        ]
+      },
+      "darkVariantDiagnostics": {
+        "steps": 1,
+        "lastLuminance": "0.0946296265945691492807752047216102173868445849942859489194932",
+        "previousLuminance": "0.100481509937723285005459094164020961959441808781462337401845"
+      },
+      "lightVariantDiagnostics": {
+        "steps": 59,
+        "lastLuminance": "0.868899386672552993263738246790400618413174909469169999487230",
+        "previousLuminance": "0.848088257494861441326489647828191624878452765111605850822059"
+      },
+      "method": "Decimal analytic grayscale or pure-primary HSL path",
+      "suggestedAbsoluteTolerance": 1e-10
+    },
+    {
+      "name": "light_gray_unchanged",
+      "primarySRGB": [
+        0.94,
+        0.94,
+        0.94,
+        1.0
+      ],
+      "expected": {
+        "lightTitle": [
+          0.102,
+          0.102,
+          0.102,
+          1
+        ],
+        "darkTitle": [
+          0.901,
+          0.901,
+          0.901,
+          1
+        ],
+        "lightMaxContrast": [
+          0.34,
+          0.34,
+          0.34,
+          1.0
+        ],
+        "darkMaxContrast": [
+          0.94,
+          0.94,
+          0.94,
+          1.0
+        ]
+      },
+      "darkVariantDiagnostics": {
+        "steps": 60,
+        "lastLuminance": "0.0946296265945691492807752047216102173868445849942859489194932",
+        "previousLuminance": "0.100481509937723285005459094164020961959441808781462337401845"
+      },
+      "lightVariantDiagnostics": {
+        "steps": 0,
+        "lastLuminance": "0.868899386672552993263738246790400618413174909469169999487230",
+        "previousLuminance": null
+      },
+      "method": "Decimal analytic grayscale or pure-primary HSL path",
+      "suggestedAbsoluteTolerance": 1e-10
+    },
+    {
+      "name": "light_gray_crosses_once",
+      "primarySRGB": [
+        0.98,
+        0.98,
+        0.98,
+        1.0
+      ],
+      "expected": {
+        "lightTitle": [
+          0.102,
+          0.102,
+          0.102,
+          1
+        ],
+        "darkTitle": [
+          0.901,
+          0.901,
+          0.901,
+          1
+        ],
+        "lightMaxContrast": [
+          0.34,
+          0.34,
+          0.34,
+          1.0
+        ],
+        "darkMaxContrast": [
+          0.97,
+          0.97,
+          0.97,
+          1.0
+        ]
+      },
+      "darkVariantDiagnostics": {
+        "steps": 64,
+        "lastLuminance": "0.0946296265945691492807752047216102173868445849942859489194932",
+        "previousLuminance": "0.100481509937723285005459094164020961959441808781462337401845"
+      },
+      "lightVariantDiagnostics": {
+        "steps": 1,
+        "lastLuminance": "0.933106841823867895218346674356605699278834452085359511104704",
+        "previousLuminance": "0.955104599233778868402591887275978071835842656985715214735379"
+      },
+      "method": "Decimal analytic grayscale or pure-primary HSL path",
+      "suggestedAbsoluteTolerance": 1e-10
+    },
+    {
+      "name": "red",
+      "primarySRGB": [
+        1.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "expected": {
+        "lightTitle": [
+          0.21,
+          0.0,
+          0.0,
+          1
+        ],
+        "darkTitle": [
+          0.955,
+          0.85,
+          0.85,
+          1
+        ],
+        "lightMaxContrast": [
+          0.7,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "darkMaxContrast": [
+          1.0,
+          0.92,
+          0.92,
+          1.0
+        ]
+      },
+      "darkVariantDiagnostics": {
+        "steps": 15,
+        "lastLuminance": "0.0952423364851443601133867686299453088203618221997345191502918",
+        "previousLuminance": "0.101410154198846801492531898209795628398819164363625669578879"
+      },
+      "lightVariantDiagnostics": {
+        "steps": 46,
+        "lastLuminance": "0.864229271827573849668905646972513688151795686258390153487781",
+        "previousLuminance": "0.832608436670108856593036474735707764769164847602263253787174"
+      },
+      "method": "Decimal analytic grayscale or pure-primary HSL path",
+      "suggestedAbsoluteTolerance": 1e-10
+    },
+    {
+      "name": "green",
+      "primarySRGB": [
+        0.0,
+        1.0,
+        0.0,
+        1.0
+      ],
+      "expected": {
+        "lightTitle": [
+          0.0,
+          0.12,
+          0.0,
+          1
+        ],
+        "darkTitle": [
+          0.85,
+          0.91,
+          0.85,
+          1
+        ],
+        "lightMaxContrast": [
+          0.0,
+          0.4,
+          0.0,
+          1.0
+        ],
+        "darkMaxContrast": [
+          0.72,
+          1.0,
+          0.72,
+          1.0
+        ]
+      },
+      "darkVariantDiagnostics": {
+        "steps": 30,
+        "lastLuminance": "0.0950274235752905722971365723045449359295859974566969813981254",
+        "previousLuminance": "0.105362548259664973775005572626642373574587201263300147160417"
+      },
+      "lightVariantDiagnostics": {
+        "steps": 36,
+        "lastLuminance": "0.851049538644551124482940191016697060056367347181376249746306",
+        "previousLuminance": "0.842787099863448324366380770017913565155404736418082742492959"
+      },
+      "method": "Decimal analytic grayscale or pure-primary HSL path",
+      "suggestedAbsoluteTolerance": 1e-10
+    },
+    {
+      "name": "blue",
+      "primarySRGB": [
+        0.0,
+        0.0,
+        1.0,
+        1.0
+      ],
+      "expected": {
+        "lightTitle": [
+          0.0,
+          0.0,
+          0.3,
+          1
+        ],
+        "darkTitle": [
+          0.85,
+          0.85,
+          1.0,
+          1
+        ],
+        "lightMaxContrast": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "darkMaxContrast": [
+          0.94,
+          0.94,
+          1.0,
+          1.0
+        ]
+      },
+      "darkVariantDiagnostics": {
+        "steps": 0,
+        "lastLuminance": "0.0722000000000000000000000000000000000000000000000000000000000",
+        "previousLuminance": null
+      },
+      "lightVariantDiagnostics": {
+        "steps": 47,
+        "lastLuminance": "0.878364850954794667150096345372133693763743681005495925524252",
+        "previousLuminance": "0.840020216410494053496076529414653543138476044844468357132288"
+      },
+      "method": "Decimal analytic grayscale or pure-primary HSL path",
+      "suggestedAbsoluteTolerance": 1e-10
+    },
+    {
+      "name": "red_translucent",
+      "primarySRGB": [
+        1.0,
+        0.0,
+        0.0,
+        0.37
+      ],
+      "expected": {
+        "lightTitle": [
+          0.21,
+          0.0,
+          0.0,
+          1
+        ],
+        "darkTitle": [
+          0.955,
+          0.85,
+          0.85,
+          1
+        ],
+        "lightMaxContrast": [
+          0.7,
+          0.0,
+          0.0,
+          0.37
+        ],
+        "darkMaxContrast": [
+          1.0,
+          0.92,
+          0.92,
+          0.37
+        ]
+      },
+      "darkVariantDiagnostics": {
+        "steps": 15,
+        "lastLuminance": "0.0952423364851443601133867686299453088203618221997345191502918",
+        "previousLuminance": "0.101410154198846801492531898209795628398819164363625669578879"
+      },
+      "lightVariantDiagnostics": {
+        "steps": 46,
+        "lastLuminance": "0.864229271827573849668905646972513688151795686258390153487781",
+        "previousLuminance": "0.832608436670108856593036474735707764769164847602263253787174"
+      },
+      "method": "Decimal analytic grayscale or pure-primary HSL path",
+      "suggestedAbsoluteTolerance": 1e-10
+    },
+    {
+      "name": "blue_zero_alpha",
+      "primarySRGB": [
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      "expected": {
+        "lightTitle": [
+          0.0,
+          0.0,
+          0.3,
+          1
+        ],
+        "darkTitle": [
+          0.85,
+          0.85,
+          1.0,
+          1
+        ],
+        "lightMaxContrast": [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        "darkMaxContrast": [
+          0.94,
+          0.94,
+          1.0,
+          0.0
+        ]
+      },
+      "darkVariantDiagnostics": {
+        "steps": 0,
+        "lastLuminance": "0.0722000000000000000000000000000000000000000000000000000000000",
+        "previousLuminance": null
+      },
+      "lightVariantDiagnostics": {
+        "steps": 47,
+        "lastLuminance": "0.878364850954794667150096345372133693763743681005495925524252",
+        "previousLuminance": "0.840020216410494053496076529414653543138476044844468357132288"
+      },
+      "method": "Decimal analytic grayscale or pure-primary HSL path",
+      "suggestedAbsoluteTolerance": 1e-10
+    },
+    {
+      "name": "rebuild_default_lavender",
+      "primarySRGB": [
+        0.8,
+        0.81,
+        0.9,
+        1.0
+      ],
+      "expected": {
+        "lightTitle": [
+          0.08800000000000023,
+          0.09680000000000015,
+          0.1759999999999996,
+          1
+        ],
+        "darkTitle": [
+          0.8940000000000001,
+          0.8984000000000001,
+          0.9379999999999998,
+          1
+        ],
+        "lightMaxContrast": [
+          0.2933333333333341,
+          0.32266666666666716,
+          0.5866666666666653,
+          1.0
+        ],
+        "darkMaxContrast": [
+          0.9333333333333336,
+          0.9366666666666669,
+          0.9666666666666668,
+          1.0
+        ]
+      },
+      "darkVariantDiagnostics": {
+        "steps": 41,
+        "lastLuminance": 0.09753849595008751,
+        "previousLuminance": 0.10220926653696544
+      },
+      "lightVariantDiagnostics": {
+        "steps": 10,
+        "lastLuminance": 0.8650691978721227,
+        "previousLuminance": 0.8394683114529743
+      },
+      "method": "Python stdlib colorsys iteration; source is the app default",
+      "suggestedAbsoluteTolerance": 1e-10
+    }
+  ],
+  "rejections": [
+    "NaN or infinity in any component",
+    "negative or >1 RGB component",
+    "alpha outside [0,1]"
+  ],
+  "limits": [
+    "Not exact across NSColor conversion/rounding or Display P3",
+    "No original current Space primary sampled",
+    "Inputs and semantic output channels are encoded sRGB values in [0,1]; title blending is not linear-light."
+  ]
+}
