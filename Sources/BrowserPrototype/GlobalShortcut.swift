@@ -21,7 +21,7 @@ final class GlobalMiniWindowShortcut {
         if handler == nil {
             var type = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
             InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
-                DispatchQueue.main.async { MainActor.assumeIsolated { MiniWindows.shared.open() } }
+                DispatchQueue.main.async { MainActor.assumeIsolated { MiniWindows.shared.openLauncher() } }
                 return noErr
             }, 1, &type, nil, &handler)
         }

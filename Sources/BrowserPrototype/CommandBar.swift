@@ -149,7 +149,7 @@ struct BrowserCommandBar: View {
 }
 
 /// Claim the field editor as the overlay attaches, before a deferred SwiftUI focus task.
-private struct CommandInput: NSViewRepresentable {
+struct CommandInput: NSViewRepresentable {
     @Binding var text: String
     let scheme: ColorScheme
     let submit: () -> Void

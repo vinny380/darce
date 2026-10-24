@@ -29,3 +29,29 @@ func runMiniWindowSmoke(model: BrowserModel) -> [String: Bool] {
     checks["plain_command_click_is_left_to_webkit"] = page.onModifiedLink?(link, [.command]) == false
     return checks
 }
+
+/// Launcher contract (⌥⌘N, like Little Arc's command bar): with nothing typed it offers your Favorites and pins
+/// first, one row per site; typed text goes straight to that site or search; choosing opens a mini window, or
+/// navigates the mini window that summoned it.
+@MainActor
+func runMiniLauncherSmoke(model: BrowserModel) -> [String: Bool] {
+    let favorite = URL(string: "https://launcher-favorite.invalid/home")!
+    model.open(favorite)
+    if let id = model.state.selectedTabID { model.pin(id, kind: .favorite) }
+    model.open(URL(string: "https://launcher-favorite.invalid/other-page")!)
+    let suggestions = MiniLauncher.items(for: "", model: model)
+    var checks = ["launcher_offers_favorites_first": suggestions.first?.url.host == favorite.host]
+    checks["launcher_lists_each_site_once"] = Set(suggestions.compactMap(\.url.host)).count == suggestions.count
+    checks["launcher_caps_suggestions"] = suggestions.count <= 6
+    let typed = MiniLauncher.items(for: "example.com", model: model)
+    checks["launcher_typed_site_comes_first"] = typed.first?.url == URL(string: "https://example.com")
+    let before = MiniWindows.shared.count
+    if let first = typed.first { MiniLauncher.choose(first, target: nil, model: model) }
+    checks["launcher_choice_opens_mini_window"] = MiniWindows.shared.count == before + 1
+    if let mini = MiniWindows.shared.newest, let first = suggestions.first {
+        MiniLauncher.choose(first, target: mini, model: model)
+        checks["launcher_from_mini_window_navigates_it"] = MiniWindows.shared.count == before + 1 && mini.currentURL?.host == favorite.host
+    }
+    MiniWindows.shared.closeAll()
+    return checks
+}

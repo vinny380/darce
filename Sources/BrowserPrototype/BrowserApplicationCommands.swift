@@ -25,11 +25,11 @@ struct BrowserApplicationCommands: Commands {
                     else { activeModel.commandMode = .newTab }
                 }.keyboardShortcut("t")
                 Button("New Private Window") { privateWindows.open() }.keyboardShortcut("n", modifiers: [.command, .shift])
-                Button("New Mini Window") { MiniWindows.shared.open() }.keyboardShortcut("n", modifiers: [.command, .option])
+                Button("New Mini Window") { MiniWindows.shared.openLauncher() }.keyboardShortcut("n", modifiers: [.command, .option])
                 Button("Reopen Last Archived Tab") { activeModel.reopenLastArchived() }.keyboardShortcut("t", modifiers: [.command, .shift])
                     .disabled(privateWindows.isPrivateWindowActive || activeModel.archivedTabs.isEmpty)
                 Button("Open Location") {
-                    if let mini = MiniWindows.shared.active { mini.beginEditing() }
+                    if let mini = MiniWindows.shared.active { MiniWindows.shared.openLauncher(for: mini) }
                     else if let session = privateWindows.activeSession { session.focusAddress() }
                     else { activeModel.commandMode = .location }
                 }.keyboardShortcut("l")
