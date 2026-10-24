@@ -78,6 +78,7 @@ public struct BrowserSettings: Codable, Equatable, Sendable {
     private var boosts: Bool?
     private var haptics: Bool?
     private var fullURL: Bool?
+    private var warnBeforeQuit: Bool?
     private var sitePermissions: [String: [SiteDevice: SiteDecision]]?
     // Arc stores `enabledHosts` and `disabledDefaultHosts` for Developer Mode; same shape here.
     private var developerHosts: Set<String>?
@@ -147,6 +148,8 @@ public struct BrowserSettings: Codable, Equatable, Sendable {
     public var boostsEnabled: Bool { get { boosts ?? true } set { boosts = newValue } }
     /// A tap from the trackpad when a dragged tab lands.
     public var hapticFeedback: Bool { get { haptics ?? true } set { haptics = newValue } }
+    /// Arc's shouldWarnBeforeQuitting: ⌘Q asks first, until "Quit, and don't ask again".
+    public var warnBeforeQuitting: Bool { get { warnBeforeQuit ?? true } set { warnBeforeQuit = newValue } }
     /// The sidebar's address field shows the whole URL rather than the site name.
     public var showFullURL: Bool { get { fullURL ?? false } set { fullURL = newValue } }
 

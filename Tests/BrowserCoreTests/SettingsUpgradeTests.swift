@@ -25,3 +25,13 @@ import Testing
     #expect(reloaded.searchEngine(forProfile: work) == .google)
     #expect(reloaded.searchEngine(forProfile: personal) == .duckDuckGo)
 }
+
+/// Arc's shouldWarnBeforeQuitting: on unless the user chose "Quit, and don't ask again", and that choice sticks.
+@Test func quitWarningIsOnByDefaultAndCanBeTurnedOff() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+    defer { try? FileManager.default.removeItem(at: url) }
+    var store = try BrowserSettingsStore(fileURL: url)
+    #expect(store.state.warnBeforeQuitting)
+    try store.update { $0.warnBeforeQuitting = false }
+    #expect(try !BrowserSettingsStore(fileURL: url).state.warnBeforeQuitting)
+}
