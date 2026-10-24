@@ -22,6 +22,9 @@ final class BrowserModel: ObservableObject {
     /// New Space / Rename Space, asked from the Spaces menu or the sidebar.
     enum SpacePrompt: Equatable { case new, rename(UUID) }
     @Published var spacePrompt: SpacePrompt?
+    /// Arc's Library, shown in place of the sidebar.
+    @Published var libraryOpen = false
+    @Published var libraryCategory = LibraryCategory.downloads
     /// Arc's Boost editor panel for the selected site.
     @Published var boostPanelOpen = false
     @Published var boostPanelZapping = false

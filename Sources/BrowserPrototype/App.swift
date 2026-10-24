@@ -173,7 +173,11 @@ struct BrowserWindow: View {
     var body: some View {
         ZStack(alignment: .top) {
             HStack(spacing: 0) {
-                if model.sidebarVisible {
+                if model.libraryOpen {
+                    LibraryView(model: model, downloads: model.downloads, documents: model.documents, boosts: model.boosts)
+                        .frame(width: max(sidebarWidth, 390))
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                } else if model.sidebarVisible {
                     BrowserSidebar(model: model, appearance: appearance, showArchive: $showArchive, showNewSpace: $showNewSpace, showNewFolder: $showNewFolder,
                                    spaceSlide: spaceSlide, spaceSlideProgress: slideProgress)
                         .frame(width: sidebarWidth)
@@ -280,7 +284,9 @@ struct BrowserWindow: View {
         .ignoresSafeArea(.container, edges: .top)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: model.sidebarVisible)
         .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: model.boostPanelOpen)
-        .sheet(isPresented: $showArchive) { archiveSheet }
+        // The sidebar's bottom-left button opens the Library, like Arc (it used to open an Archive sheet).
+        .onChange(of: showArchive) { _, show in if show { showArchive = false; model.libraryOpen = true } }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: model.libraryOpen)
         .sheet(item: $model.panel) { panel in
             switch panel {
             case .browsingData:
@@ -352,21 +358,6 @@ struct BrowserWindow: View {
                 }.foregroundStyle(.primary.opacity(0.35)).frame(maxWidth: .infinity, maxHeight: .infinity)
             }.buttonStyle(.plain).background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
         }
-    }
-
-    private var archiveSheet: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack { Text("Archive").font(.title2.bold()); Spacer(); Button("Done") { showArchive = false } }
-            let archived = model.archivedTabs
-            if archived.isEmpty { Text("Archived tabs will appear here.").foregroundStyle(.secondary) }
-            List(archived) { tab in
-                HStack {
-                    VStack(alignment: .leading) { Text(tab.title); Text(tab.url.absoluteString).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
-                    Spacer()
-                    Button("Restore") { model.restore(tab.id); showArchive = false }
-                }
-            }
-        }.padding(24).frame(width: 560, height: 360)
     }
 }
 

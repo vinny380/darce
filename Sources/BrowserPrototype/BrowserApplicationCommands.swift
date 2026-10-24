@@ -94,7 +94,8 @@ struct BrowserApplicationCommands: Commands {
                 Divider()
                 Button("History") { activeModel.panel = .history }.keyboardShortcut("y")
                 Button("Clear Browsing Data…") { activeModel.panel = .browsingData }
-                Button("Downloads") { activeModel.panel = .downloads }.keyboardShortcut("j", modifiers: [.command, .shift])
+                Button("Downloads") { activeModel.libraryCategory = .downloads; activeModel.libraryOpen = true }.keyboardShortcut("j", modifiers: [.command, .shift])
+                Button(activeModel.libraryOpen ? "Hide Library" : "Library") { activeModel.libraryOpen.toggle() }.keyboardShortcut("l", modifiers: [.command, .shift])
                 Button("Profiles") { activeModel.panel = .profiles }
                 Button("Notes & Easels") { activeModel.panel = .documents }
                 Button("Customize Space…") { activeModel.panel = .appearance }
