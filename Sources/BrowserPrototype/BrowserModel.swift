@@ -254,10 +254,12 @@ final class BrowserModel: ObservableObject {
         return saved ? id : nil
     }
     func move(_ id: UUID, into folder: UUID?) { stateUpdate { _ = $0.moveTab(id, into: folder) } }
-    func reorder(_ id: UUID, before target: UUID) -> Bool {
-        var moved = false
-        stateUpdate { moved = $0.reorderTab(id, before: target) }
-        return moved
+    /// Drag and drop into any sidebar section; see `BrowserState.placeTab`.
+    @discardableResult
+    func place(_ id: UUID, kind: TabKind, folder: UUID? = nil, before target: UUID? = nil) -> Bool {
+        var placed = false
+        stateUpdate { placed = $0.placeTab(id, kind: kind, folderID: folder, before: target) }
+        return placed
     }
     func focusPane(_ id: UUID) {
         guard state.displayedTabIDs.contains(id), stateUpdate({ $0.selectTab(id) }), let page = page(for: id) else { return }

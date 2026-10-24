@@ -31,7 +31,7 @@
   <tr>
     <td width="50%" valign="top">
       <h3>🗂 Sidebar &amp; Spaces</h3>
-      Favorites, pinned tabs that remember their home URL, nested folders, and a separate Space for each part of your life, each with its own colors and icon.
+      Favorites, pinned tabs that remember their home URL, nested folders, and a separate Space for each part of your life, each with its own colors and icon. Drag any tab between Favorites, Pinned, folders, Today and other Spaces.
     </td>
     <td width="50%" valign="top">
       <h3>🧹 Auto-archive</h3>

@@ -16,6 +16,17 @@ struct BrowserSidebar: View {
     @State private var renameTarget: RenameTarget?
     @State private var renameText = ""
     @State private var removalTarget: RemovalTarget?
+    /// The drop zone under the pointer during a drag, so it can show where the tab will land.
+    @State private var dropTarget: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private func draggedTab(_ values: [String]) -> UUID? { values.first.flatMap(UUID.init(uuidString:)) }
+    private func draggedFolder(_ values: [String]) -> UUID? {
+        values.first.flatMap { $0.hasPrefix("folder:") ? UUID(uuidString: String($0.dropFirst(7))) : nil }
+    }
+    private func targeting(_ zone: String) -> (Bool) -> Void {
+        { inside in if inside { dropTarget = zone } else if dropTarget == zone { dropTarget = nil } }
+    }
 
     private var pinnedExpanded: Bool { !appearance.state.space(model.state.selectedSpaceID).pinnedCollapsed }
     private var closedFolders: Set<UUID> { appearance.state.space(model.state.selectedSpaceID).collapsedFolderIDs }
@@ -53,6 +64,16 @@ struct BrowserSidebar: View {
                             Image(systemName: pinnedExpanded ? "chevron.down" : "chevron.right").font(.system(size: 10, weight: .semibold))
                         }.buttonStyle(.plain).accessibilityLabel(pinnedExpanded ? "Collapse Pinned Tabs" : "Expand Pinned Tabs")
                     }.padding(.horizontal, 10).padding(.top, 13).padding(.bottom, 9).foregroundStyle(.primary.opacity(0.65))
+                    .background(dropTarget == "pinned" ? Color.accentColor.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 9))
+                    .contentShape(Rectangle())
+                    .dropDestination(for: String.self) { values, _ in
+                        if let folder = draggedFolder(values) {
+                            var moved = false
+                            model.stateUpdate { moved = $0.moveFolder(folder, to: nil) }
+                            return moved
+                        }
+                        return draggedTab(values).map { model.place($0, kind: .pinned) } ?? false
+                    } isTargeted: { targeting("pinned")($0) }
                     .contextMenu {
                         if let space = model.state.spaces.first(where: { $0.id == model.state.selectedSpaceID }) { spaceActions(space) }
                     }
@@ -66,8 +87,21 @@ struct BrowserSidebar: View {
                             Text("⌘T").font(.system(size: 11)).opacity(0.6)
                         }.font(.system(size: 13)).foregroundStyle(.secondary).padding(.horizontal, 10).frame(height: 34).contentShape(Rectangle())
                     }.buttonStyle(.plain)
+                    .overlay(alignment: .bottom) { insertionLine(dropTarget == "today-top") }
+                    .dropDestination(for: String.self) { values, _ in
+                        let first = model.state.visibleTabs.first { $0.kind == .today }?.id
+                        return draggedTab(values).map { model.place($0, kind: .today, before: first) } ?? false
+                    } isTargeted: { targeting("today-top")($0) }
                     ForEach(model.state.visibleTabs.filter { $0.kind == .today }) { tab in tabRow(tab) }
+                    // Empty space below Today: drop to add at the end.
+                    Color.clear.frame(maxWidth: .infinity, minHeight: 80).contentShape(Rectangle())
+                        .overlay(alignment: .top) { insertionLine(dropTarget == "today-end") }
+                        .dropDestination(for: String.self) { values, _ in
+                            draggedTab(values).map { model.place($0, kind: .today) } ?? false
+                        } isTargeted: { targeting("today-end")($0) }
                 }.frame(maxWidth: .infinity, alignment: .leading)
+                .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: model.state.visibleTabs.map(\.id))
+                .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: model.state.visibleTabs.map(\.folderID))
             }.scrollIndicators(.hidden)
             .offset(x: spaceSlide)
             .opacity(1 - 0.75 * spaceSlideProgress)
@@ -83,6 +117,13 @@ struct BrowserSidebar: View {
                             .opacity(model.state.selectedSpaceID == space.id ? 0.9 : 0.4)
                     }.help(space.name).accessibilityLabel("Switch to \(space.name)")
                     .contextMenu { spaceActions(space) }
+                    .scaleEffect(dropTarget == "space:\(space.id)" ? 1.25 : 1)
+                    .animation(reduceMotion ? nil : .snappy(duration: 0.15), value: dropTarget)
+                    .dropDestination(for: String.self) { values, _ in
+                        guard let id = draggedTab(values), model.state.tabs.contains(where: { $0.id == id }) else { return false }
+                        model.move(id, to: space.id)
+                        return true
+                    } isTargeted: { targeting("space:\(space.id)")($0) }
                 }
                 Spacer(minLength: 4)
                 Menu {
@@ -203,14 +244,30 @@ struct BrowserSidebar: View {
                         .background(Palette.color(model.state.selectedTabID == tab.id ? "SidebarItemHovered" : "SidebarItemBackground", scheme: scheme), in: RoundedRectangle(cornerRadius: 11))
                 }.buttonStyle(.plain).help(tab.title).accessibilityLabel("\(tab.title), favorite")
                     .contextMenu { tabActions(tab) }.draggable(tab.id.uuidString)
+                    .overlay(alignment: .leading) {
+                        if dropTarget == "tab:\(tab.id)" {
+                            Capsule().fill(Color.accentColor).frame(width: 3, height: 30).offset(x: -5)
+                        }
+                    }
+                    .dropDestination(for: String.self) { values, _ in
+                        draggedTab(values).map { model.place($0, kind: .favorite, before: tab.id) } ?? false
+                    } isTargeted: { targeting("tab:\(tab.id)")($0) }
+            }
+        }
+        .frame(minHeight: tabs.isEmpty ? 22 : 0)
+        .overlay {
+            if tabs.isEmpty, dropTarget == "favorites" {
+                Text("Add to Favorites").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 9))
             }
         }
         .padding(.top, tabs.isEmpty ? 0 : 6)
+        .contentShape(Rectangle())
+        .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: tabs.map(\.id))
         .dropDestination(for: String.self) { values, _ in
-            guard let id = values.first.flatMap(UUID.init(uuidString:)), model.state.tabs.contains(where: { $0.id == id }) else { return false }
-            model.pin(id, kind: .favorite)
-            return true
-        }
+            draggedTab(values).map { model.place($0, kind: .favorite) } ?? false
+        } isTargeted: { targeting("favorites")($0) }
     }
 
     private func folderContents(parent: UUID?) -> AnyView {
@@ -247,10 +304,10 @@ struct BrowserSidebar: View {
                             model.stateUpdate { moved = $0.moveFolder(id, to: folder.id) }
                             return moved
                         }
-                        guard let id = UUID(uuidString: raw), model.state.tabs.contains(where: { $0.id == id }) else { return false }
-                        model.move(id, into: folder.id)
-                        return true
-                    }
+                        guard let id = UUID(uuidString: raw) else { return false }
+                        return model.place(id, kind: .pinned, folder: folder.id)
+                    } isTargeted: { targeting("folder:\(folder.id)")($0) }
+                    .background(dropTarget == "folder:\(folder.id)" ? Color.accentColor.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 9))
                     if !closedFolders.contains(folder.id) { folderContents(parent: folder.id).padding(.leading, 14) }
                 }
             }
@@ -276,10 +333,15 @@ struct BrowserSidebar: View {
                           model.resetPin(tab.id)
                       }, close: { model.archive(tab.id) })
             .contextMenu { tabActions(tab) }.draggable(tab.id.uuidString)
+            .overlay(alignment: .top) { insertionLine(dropTarget == "tab:\(tab.id)").offset(y: -2) }
             .dropDestination(for: String.self) { values, _ in
-                guard let id = values.first.flatMap(UUID.init(uuidString:)) else { return false }
-                return model.reorder(id, before: tab.id)
-            }
+                draggedTab(values).map { model.place($0, kind: tab.kind, folder: tab.folderID, before: tab.id) } ?? false
+            } isTargeted: { targeting("tab:\(tab.id)")($0) }
+    }
+
+    /// Where a dragged tab will land.
+    @ViewBuilder private func insertionLine(_ visible: Bool) -> some View {
+        if visible { Capsule().fill(Color.accentColor).frame(height: 2).padding(.horizontal, 6).allowsHitTesting(false) }
     }
 
     @ViewBuilder private func tabActions(_ tab: BrowserTab) -> some View {
