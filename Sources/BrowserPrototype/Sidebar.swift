@@ -18,6 +18,9 @@ struct BrowserSidebar: View {
     @State private var removalTarget: RemovalTarget?
     /// The drop zone under the pointer during a drag, so it can show where the tab will land.
     @State private var dropTarget: String?
+    /// The tab being dragged from this sidebar, so drop previews can show it.
+    @State private var draggingTab: UUID?
+    @State private var rowWidth: CGFloat = 220
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private func draggedTab(_ values: [String]) -> UUID? { values.first.flatMap(UUID.init(uuidString:)) }
@@ -107,6 +110,7 @@ struct BrowserSidebar: View {
                             draggedTab(values).map { model.place($0, kind: .today) } ?? false
                         } isTargeted: { targeting("today-end")($0) }
                 }.frame(maxWidth: .infinity, alignment: .leading)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
                 .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: model.state.visibleTabs.map(\.id))
                 .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: model.state.visibleTabs.map(\.folderID))
             }.scrollIndicators(.hidden)
@@ -253,7 +257,8 @@ struct BrowserSidebar: View {
                     .contentShape(Rectangle()).onTapGesture { model.select(tab.id) }
                     .help(tab.title).accessibilityElement().accessibilityAddTraits(.isButton)
                     .accessibilityLabel("\(tab.title), favorite").accessibilityAction { model.select(tab.id) }
-                    .contextMenu { tabActions(tab) }.draggable(tab.id.uuidString)
+                    .contextMenu { tabActions(tab) }
+                    .tabDragSource(tab.id, dragging: $draggingTab) { dragPreview(tab) }
                     .overlay(alignment: .leading) {
                         if dropTarget == "tab:\(tab.id)" {
                             Capsule().fill(Color.accentColor).frame(width: 3, height: 30).offset(x: -5)
@@ -334,41 +339,41 @@ struct BrowserSidebar: View {
     }
 
     func tabRow(_ tab: BrowserTab) -> some View {
-        SidebarTabRow(tab: tab, selected: model.state.selectedTabID == tab.id,
-                      canReset: model.canResetSidebarTab(tab.id, isEditing: isRenamingTab(tab.id)),
-                      contentVisible: model.state.displayedTabIDs.contains(tab.id),
-                      semanticPalette: appearance.semanticPalette(forSpace: model.state.selectedSpaceID),
-                      icon: SiteIcon(controller: model.favicons, url: tab.url,
-                                     profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 16,
-                                     usesInheritedForeground: true),
-                      select: { model.select(tab.id) }, reset: {
-                          guard model.canResetSidebarTab(tab.id, isEditing: isRenamingTab(tab.id)) else { return }
-                          model.resetPin(tab.id)
-                      }, close: { model.archive(tab.id) })
-            .contextMenu { tabActions(tab) }.draggable(tab.id.uuidString)
-            .overlay(alignment: .top) { insertionLine(dropTarget == "tab:\(tab.id)").offset(y: -2) }
-            .overlay { splitPreview(dropTarget == "split:\(tab.id)") }
-            .onDrop(of: [.plainText], delegate: dropDelegate(onto: tab, canSplit: true))
+        ZStack {
+            if let slot = splitSlot(over: tab.id) {
+                splitLayout([tab.id], placeholderAt: slot, displayed: false)
+            } else {
+                SidebarTabRow(tab: tab, selected: model.state.selectedTabID == tab.id,
+                              canReset: model.canResetSidebarTab(tab.id, isEditing: isRenamingTab(tab.id)),
+                              contentVisible: model.state.displayedTabIDs.contains(tab.id),
+                              semanticPalette: appearance.semanticPalette(forSpace: model.state.selectedSpaceID),
+                              icon: SiteIcon(controller: model.favicons, url: tab.url,
+                                             profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 16,
+                                             usesInheritedForeground: true),
+                              select: { model.select(tab.id) }, reset: {
+                                  guard model.canResetSidebarTab(tab.id, isEditing: isRenamingTab(tab.id)) else { return }
+                                  model.resetPin(tab.id)
+                              }, close: { model.archive(tab.id) })
+                    .contextMenu { tabActions(tab) }
+                    .tabDragSource(tab.id, dragging: $draggingTab) { dragPreview(tab) }
+            }
+        }
+        .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: dropTarget)
+        .overlay(alignment: .top) { insertionLine(dropTarget == "tab:\(tab.id)").offset(y: -2) }
+        .onDrop(of: [.plainText], delegate: dropDelegate(onto: tab, slots: draggingTab == tab.id ? 0 : 1))
     }
 
-    private func dropDelegate(onto tab: BrowserTab, canSplit: Bool) -> TabDropDelegate {
-        TabDropDelegate(id: tab.id, canSplit: canSplit, target: $dropTarget) { [model] dragged, split in
-            if split { model.splitTab(dragged, onto: tab.id) }
+    private func dropDelegate(onto tab: BrowserTab, slots: Int) -> TabDropDelegate {
+        TabDropDelegate(id: tab.id, width: rowWidth, slots: slots, target: $dropTarget) { [model] dragged, slot in
+            if let slot { model.splitTab(dragged, onto: tab.id, at: slot) }
             else { model.place(dragged, kind: tab.kind, folder: tab.folderID, before: tab.id) }
         }
     }
 
-    /// A tab dropped here will open in split view with this one.
-    @ViewBuilder private func splitPreview(_ visible: Bool) -> some View {
-        if visible {
-            RoundedRectangle(cornerRadius: 12).strokeBorder(Color.accentColor, lineWidth: 2)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
-                .overlay(alignment: .trailing) {
-                    Image(systemName: "rectangle.split.2x1").font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.accentColor).padding(.trailing, 10)
-                }
-                .allowsHitTesting(false)
-        }
+    /// The split slot the pointer is over for this row, if a drop here would split.
+    private func splitSlot(over id: UUID) -> Int? {
+        guard let target = dropTarget, target.hasPrefix("split:\(id.uuidString):") else { return nil }
+        return Int(target.split(separator: ":").last ?? "")
     }
 
     /// A split shows once in the sidebar, at its first non-Favorite tab; the other panes ride along in that row.
@@ -382,18 +387,52 @@ struct BrowserSidebar: View {
 
     private func splitRow(_ group: BrowserSplitGroup, leader: BrowserTab) -> some View {
         let displayed = group.tabIDs.contains { $0 == model.state.selectedTabID }
+        // While hovering, the dragged tab's chip leaves its old slot and a placeholder opens where it would land.
+        let others = group.tabIDs.filter { $0 != draggingTab }
+        let slots = others.count < group.tabIDs.count || group.tabIDs.count < 4 ? others.count : 0
+        let slot = splitSlot(over: leader.id)
+        return splitLayout(slot == nil ? group.tabIDs : others, placeholderAt: slot, displayed: displayed)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: dropTarget)
+            .overlay(alignment: .top) { insertionLine(dropTarget == "tab:\(leader.id)").offset(y: -2) }
+            .onDrop(of: [.plainText], delegate: dropDelegate(onto: leader, slots: slots))
+            .accessibilityElement(children: .contain).accessibilityLabel("Split view, \(group.tabIDs.count) tabs")
+    }
+
+    private enum SplitChip: Hashable { case tab(UUID), placeholder }
+
+    /// One row of side-by-side chips; with `placeholderAt`, a lighter chip for the dragged tab opens at that slot.
+    private func splitLayout(_ ids: [UUID], placeholderAt slot: Int?, displayed: Bool) -> some View {
+        var chips = ids.map(SplitChip.tab)
+        if let slot { chips.insert(.placeholder, at: max(0, min(slot, chips.count))) }
         return HStack(spacing: 4) {
-            ForEach(group.tabIDs, id: \.self) { id in
-                if let tab = model.state.tabs.first(where: { $0.id == id }) { splitChip(tab) }
+            ForEach(chips, id: \.self) { chip in
+                switch chip {
+                case .tab(let id):
+                    if let tab = model.state.tabs.first(where: { $0.id == id }) { splitChip(tab) }
+                case .placeholder:
+                    placeholderChip
+                }
             }
         }
         .padding(3)
-        .background(Palette.color(displayed ? "TabCellBackgroundContentVisible" : "SidebarItemBackground", scheme: scheme),
+        .background(Palette.color(displayed || slot != nil ? "TabCellBackgroundContentVisible" : "SidebarItemBackground", scheme: scheme),
                     in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(alignment: .top) { insertionLine(dropTarget == "tab:\(leader.id)").offset(y: -2) }
-        .overlay { splitPreview(dropTarget == "split:\(leader.id)") }
-        .onDrop(of: [.plainText], delegate: dropDelegate(onto: leader, canSplit: group.tabIDs.count < 4))
-        .accessibilityElement(children: .contain).accessibilityLabel("Split view, \(group.tabIDs.count) tabs")
+    }
+
+    private var placeholderChip: some View {
+        HStack(spacing: 7) {
+            if let id = draggingTab, let tab = model.state.tabs.first(where: { $0.id == id }) {
+                SiteIcon(controller: model.favicons, url: tab.url,
+                         profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 14)
+                Text(tab.title).font(.system(size: 13)).lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 9).frame(maxWidth: .infinity, alignment: .leading).frame(height: 32)
+        .background(Palette.color("TabCellBackgroundCurrent", scheme: scheme).opacity(0.6),
+                    in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .foregroundStyle(.primary.opacity(0.55))
+        .transition(.scale(scale: 0.6, anchor: .center).combined(with: .opacity))
+        .allowsHitTesting(false)
     }
 
     private func splitChip(_ tab: BrowserTab) -> some View {
@@ -414,12 +453,33 @@ struct BrowserSidebar: View {
             Divider()
             tabActions(tab)
         }
-        .draggable(tab.id.uuidString)
+        .tabDragSource(tab.id, dragging: $draggingTab) { dragPreview(tab) }
     }
 
-    /// Where a dragged tab will land.
+    /// What follows the pointer: the tab as a lifted sidebar row, like Arc.
+    private func dragPreview(_ tab: BrowserTab) -> some View {
+        HStack(spacing: 10) {
+            SiteIcon(controller: model.favicons, url: tab.url,
+                     profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 16)
+            Text(tab.title).font(.system(size: 14)).lineLimit(1)
+            Spacer(minLength: 8)
+            Image(systemName: "xmark").font(.system(size: 10, weight: .medium)).opacity(0.6)
+        }
+        .padding(.horizontal, 12).frame(width: max(rowWidth, 160), height: 36)
+        .foregroundStyle(.primary.opacity(0.85))
+        .background(Palette.color("TabCellBackgroundCurrent", scheme: scheme), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .environment(\.colorScheme, scheme)
+    }
+
+    /// Where a dragged tab will land: Arc's line with a ring at its start.
     @ViewBuilder private func insertionLine(_ visible: Bool) -> some View {
-        if visible { Capsule().fill(Color.accentColor).frame(height: 2).padding(.horizontal, 6).allowsHitTesting(false) }
+        if visible {
+            HStack(spacing: 0) {
+                Circle().strokeBorder(.primary.opacity(0.8), lineWidth: 1.5).frame(width: 7, height: 7)
+                Rectangle().fill(.primary.opacity(0.8)).frame(height: 1.5)
+            }
+            .padding(.leading, 4).padding(.trailing, 8).allowsHitTesting(false)
+        }
     }
 
     @ViewBuilder private func tabActions(_ tab: BrowserTab) -> some View {
