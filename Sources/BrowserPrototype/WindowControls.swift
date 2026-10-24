@@ -3,29 +3,50 @@ import SwiftUI
 
 /// Shows or hides the window's close/minimize/zoom buttons, fading them like Arc does when the pointer
 /// reaches the sidebar's top row. Hidden buttons are also made unclickable, so nothing invisible can close the window.
+/// In full screen the buttons belong to the system's reveal bar, so they are always left visible there.
 struct WindowControlsVisibility: NSViewRepresentable {
     let visible: Bool
 
-    func makeNSView(context: Context) -> NSView { NSView() }
+    func makeNSView(context: Context) -> ControlsView { ControlsView() }
+    func updateNSView(_ view: ControlsView, context: Context) { view.visible = visible }
 
-    func updateNSView(_ view: NSView, context: Context) {
-        let visible = visible
-        DispatchQueue.main.async {
-            guard let window = view.window else { return }
+    final class ControlsView: NSView {
+        var visible = false { didSet { if visible != oldValue { DispatchQueue.main.async { self.apply(animated: true) } } } }
+        private var observers: [NSObjectProtocol] = []
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            observers.forEach(NotificationCenter.default.removeObserver)
+            observers = []
+            guard let window else { return }
+            for name in [NSWindow.willEnterFullScreenNotification, NSWindow.didExitFullScreenNotification] {
+                observers.append(NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.apply(animated: false) }
+                })
+            }
+            DispatchQueue.main.async { self.apply(animated: false) }
+        }
+
+        private func apply(animated: Bool) {
+            guard let window else { return }
+            let show = visible || window.styleMask.contains(.fullScreen)
             let buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton].compactMap(window.standardWindowButton)
-            if visible { buttons.forEach { $0.isHidden = false } }
+            if show { buttons.forEach { $0.isHidden = false } }
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.18
-                buttons.forEach { $0.animator().alphaValue = visible ? 1 : 0 }
+                context.duration = animated ? 0.18 : 0
+                buttons.forEach { $0.animator().alphaValue = show ? 1 : 0 }
             } completionHandler: {
-                if !visible, buttons.first?.alphaValue == 0 { buttons.forEach { $0.isHidden = true } }
+                if !show, buttons.first?.alphaValue == 0 { buttons.forEach { $0.isHidden = true } }
             }
         }
     }
 }
 
 /// Reports when the pointer enters or leaves this view's area by position alone, so the window buttons drawn on
-/// top of it (which SwiftUI hover would treat as leaving) still count as inside.
+/// top of it (which SwiftUI hover would treat as leaving) still count as inside. Never reports inside in full
+/// screen, where there are no window buttons to make room for.
 struct PointerRegion: NSViewRepresentable {
     let onChange: (Bool) -> Void
 
@@ -44,7 +65,19 @@ struct PointerRegion: NSViewRepresentable {
                                            owner: self, userInfo: nil))
         }
 
-        override func mouseEntered(with event: NSEvent) { onChange?(true) }
+        private var fullScreenObserver: NSObjectProtocol?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            fullScreenObserver.map(NotificationCenter.default.removeObserver)
+            fullScreenObserver = window.map { window in
+                NotificationCenter.default.addObserver(forName: NSWindow.willEnterFullScreenNotification, object: window, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.onChange?(false) }
+                }
+            }
+        }
+
+        override func mouseEntered(with event: NSEvent) { onChange?(!(window?.styleMask.contains(.fullScreen) ?? false)) }
         override func mouseExited(with event: NSEvent) { onChange?(false) }
     }
 }
