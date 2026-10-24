@@ -29,10 +29,12 @@ struct BrowserApplicationCommands: Commands {
                     else { activeModel.commandMode = .newTab }
                 }.keyboardShortcut("t")
                 Button("New Private Window") { privateWindows.open() }.keyboardShortcut("n", modifiers: [.command, .shift])
+                Button("New Mini Window") { MiniWindows.shared.open() }.keyboardShortcut("n", modifiers: [.command, .option])
                 Button("Reopen Last Archived Tab") { activeModel.reopenLastArchived() }.keyboardShortcut("t", modifiers: [.command, .shift])
                     .disabled(privateWindows.isPrivateWindowActive || activeModel.archivedTabs.isEmpty)
                 Button("Open Location") {
-                    if let session = privateWindows.activeSession { session.focusAddress() }
+                    if let mini = MiniWindows.shared.active { mini.beginEditing() }
+                    else if let session = privateWindows.activeSession { session.focusAddress() }
                     else { activeModel.commandMode = .location }
                 }.keyboardShortcut("l")
                 Divider()
@@ -44,9 +46,10 @@ struct BrowserApplicationCommands: Commands {
             }
             CommandGroup(replacing: .saveItem) {
                 Button(privateWindows.isPrivateWindowActive ? "Close Private Tab" : "Archive Current Tab") {
-                    if let session = privateWindows.activeSession { session.closeSelectedTab() }
+                    if let mini = MiniWindows.shared.active { mini.onClose?() }
+                    else if let session = privateWindows.activeSession { session.closeSelectedTab() }
                     else if let id = activeModel.state.selectedTabID { activeModel.archive(id) }
-                }.keyboardShortcut("w").disabled(privateWindows.isPrivateWindowActive ? privateWindows.activeSession?.selectedTabID == nil : activeModel.state.selectedTab?.kind != .today)
+                }.keyboardShortcut("w").disabled(MiniWindows.shared.active == nil && (privateWindows.isPrivateWindowActive ? privateWindows.activeSession?.selectedTabID == nil : activeModel.state.selectedTab?.kind != .today))
                 Button("Close Browser Window") { NSApplication.shared.keyWindow?.performClose(nil) }.keyboardShortcut("w", modifiers: [.command, .shift])
             }
             CommandGroup(before: .windowArrangement) {

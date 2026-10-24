@@ -39,6 +39,9 @@ info = {
     'NSMicrophoneUsageDescription': 'Websites you approve can use your microphone for calls and recording.',
     'NSLocationUsageDescription': 'Websites you approve can use your location for maps and nearby results.',
 }
+# Lets macOS offer D'arce as the default browser. Smoke bundles leave it out so test copies don't pile up there.
+if os.environ.get('WEB_HANDLER') == '1':
+    info['CFBundleURLTypes'] = [{'CFBundleURLName': 'Web site URL', 'CFBundleURLSchemes': ['http', 'https']}]
 (app / 'Contents/Info.plist').write_bytes(plistlib.dumps(info))
 PY
 codesign --force --sign - "$app"

@@ -31,12 +31,14 @@ struct BrowserPrototypeApp: App {
                                                        downloadsDirectory: isSmoke ? directory.appendingPathComponent("downloads") : nil))
         windowLifecycleOutput = value("--window-lifecycle-output").map { URL(fileURLWithPath: $0) }
         smokeOutput = value("--smoke-output").map { URL(fileURLWithPath: $0) }
+        if !isSmoke { ExternalLinkHandler.shared.install() }
     }
 
     var body: some Scene {
         Window("D'arce", id: "main") {
             BrowserWindow(model: model)
                 .background(BrowserWindowRegistration(model: model))
+                .onAppear { MiniWindows.shared.primaryModel = model }
                 .frame(minWidth: 800, minHeight: 540)
                 .task {
                     if let windowLifecycleOutput {

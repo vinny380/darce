@@ -10,7 +10,7 @@ name="D'arce"
 dist="$PWD/dist"
 app="$dist/$name.app"
 rm -rf "$dist" && mkdir -p "$dist"
-CONFIG=release VERSION="$version" bash scripts/build.sh "$app" >/dev/null
+CONFIG=release WEB_HANDLER=1 VERSION="$version" bash scripts/build.sh "$app" >/dev/null
 
 if [[ -n ${SIGN_IDENTITY:-} ]]; then
   codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$app"
