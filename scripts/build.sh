@@ -38,6 +38,8 @@ info = {
     'NSCameraUsageDescription': 'Websites you approve can use your camera for video calls and recording.',
     'NSMicrophoneUsageDescription': 'Websites you approve can use your microphone for calls and recording.',
     'NSLocationUsageDescription': 'Websites you approve can use your location for maps and nearby results.',
+    # A browser loads any site, including plain-http ones; App Transport Security would block those silently.
+    'NSAppTransportSecurity': {'NSAllowsArbitraryLoadsInWebContent': True},
 }
 # Lets macOS offer D'arce as the default browser. Smoke bundles leave it out so test copies don't pile up there.
 if os.environ.get('WEB_HANDLER') == '1':
