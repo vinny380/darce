@@ -9,6 +9,12 @@ public struct BrowserBoost: Identifiable, Codable, Equatable, Sendable {
     public var css: String
     public var javascript: String?
     public var hiddenSelectors: [String]
+    // Arc's Boost editor controls (BoostData: colorScheme, font, textTransform, textZoom). Optional, so Boosts
+    // saved before them still load; nil leaves the page's own.
+    public var colors: BoostColors?
+    public var font: String?
+    public var textCase: BoostCase?
+    public var textSize: BoostTextSize?
 
     public init(id: UUID = UUID(), profileID: UUID, host: String, name: String, enabled: Bool = true, css: String = "", javascript: String? = nil, hiddenSelectors: [String] = []) {
         self.id = id
