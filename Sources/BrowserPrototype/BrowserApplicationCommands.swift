@@ -33,6 +33,11 @@ struct BrowserApplicationCommands: Commands {
                     else if let session = privateWindows.activeSession { session.focusAddress() }
                     else { activeModel.commandMode = .location }
                 }.keyboardShortcut("l")
+                // Arc's ⌘O (openInCurrentSpace:): a focused mini window or an open Peek becomes a tab in the main window.
+                Button("Open Mini Window or Peek in D'arce") {
+                    if let mini = MiniWindows.shared.active { mini.openInMain() }
+                    else if activeModel.peekPage != nil { activeModel.promotePeek() }
+                }.keyboardShortcut("o")
                 Divider()
                 Button("Import Bookmarks…") { activeModel.importBookmarks() }.disabled(privateWindows.isPrivateWindowActive)
                 Button("Export Bookmarks…") { activeModel.exportBookmarks() }.disabled(privateWindows.isPrivateWindowActive)

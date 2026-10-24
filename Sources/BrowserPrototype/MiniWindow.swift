@@ -233,7 +233,6 @@ struct MiniBrowserView: View {
             .padding(.horizontal, 10).frame(height: 28)
             .background(Palette.color("SidebarItemBackground", scheme: scheme), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             .help("Move this page to a full window (⌘O)")
-            .keyboardShortcut("o")
         }
         .padding(.leading, 6).padding(.trailing, 8).frame(height: 44)
     }

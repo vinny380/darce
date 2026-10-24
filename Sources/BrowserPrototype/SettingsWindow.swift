@@ -223,7 +223,7 @@ private struct ShortcutSettings: View {
         ("Cycle Tab Backward", "⌃⌘←"), ("Cycle Tab Forward", "⌃⌘→"), ("Downloads", "⇧⌘J"), ("Find in Page", "⌘F"),
         ("Forward", "⌘]"), ("Go to Last Tab", "⌘9"), ("Go to Tab 1–8", "⌘1 … ⌘8"), ("History", "⌘Y"),
         ("New Mini Window", "⌥⌘N"), ("New Private Window", "⇧⌘N"), ("New Tab", "⌘T"), ("New Window", "⌘N"),
-        ("Next Space", "⌥⌘→"), ("Next Tab", "⌥⌘↓"), ("Open in D'arce (mini window)", "⌘O"), ("Open Location", "⌘L"),
+        ("Next Space", "⌥⌘→"), ("Next Tab", "⌥⌘↓"), ("Open Mini Window or Peek in D'arce", "⌘O"), ("Open Location", "⌘L"),
         ("Pin / Unpin Tab", "⌘D"), ("Previous Space", "⌥⌘←"), ("Previous Tab", "⌥⌘↑"), ("Print", "⌘P"),
         ("Reload", "⌘R"), ("Reload from Origin", "⇧⌘R"), ("Reopen Last Archived Tab", "⇧⌘T"), ("Settings", "⌘,"),
         ("Stop Loading", "⌘."), ("Switch to Recent Tab", "⌃Tab"), ("Switch to Space 1–9", "⌃1 … ⌃9"),
