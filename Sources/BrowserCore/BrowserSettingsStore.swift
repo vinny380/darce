@@ -79,8 +79,34 @@ public struct BrowserSettings: Codable, Equatable, Sendable {
     private var haptics: Bool?
     private var fullURL: Bool?
     private var sitePermissions: [String: [SiteDevice: SiteDecision]]?
+    // Arc stores `enabledHosts` and `disabledDefaultHosts` for Developer Mode; same shape here.
+    private var developerHosts: Set<String>?
+    private var developerDefaultsOff: Set<String>?
 
     public init() {}
+
+    /// Local development servers start in Developer Mode; Arc has default-on hosts too, though its list wasn't recovered.
+    public static let developerDefaultHosts: Set<String> = ["localhost", "127.0.0.1"]
+
+    public func isDeveloperMode(host: String) -> Bool {
+        let host = host.lowercased()
+        if Self.developerDefaultHosts.contains(host) { return !(developerDefaultsOff ?? []).contains(host) }
+        return (developerHosts ?? []).contains(host)
+    }
+
+    public mutating func toggleDeveloperMode(host: String) {
+        let host = host.lowercased()
+        let on = !isDeveloperMode(host: host)
+        if Self.developerDefaultHosts.contains(host) {
+            var off = developerDefaultsOff ?? []
+            if on { off.remove(host) } else { off.insert(host) }
+            developerDefaultsOff = off.isEmpty ? nil : off
+        } else {
+            var hosts = developerHosts ?? []
+            if on { hosts.insert(host) } else { hosts.remove(host) }
+            developerHosts = hosts.isEmpty ? nil : hosts
+        }
+    }
 
     public func permission(for device: SiteDevice, host: String) -> SiteDecision {
         sitePermissions?[host.lowercased()]?[device] ?? .ask
