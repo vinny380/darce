@@ -570,17 +570,26 @@ extension BrowserState {
     }
 
     /// Drag and drop onto a sidebar tab: the dragged tab joins the target's split (or starts one) and takes focus.
-    /// A pane dragged from another split leaves it. Validates first, so a rejected drop changes nothing.
+    /// `position` is its slot among the split's other tabs (0 = first); nil appends. A pane dragged within its own
+    /// split moves to `position`; one dragged from another split leaves it. Validates first, so a rejected drop
+    /// changes nothing.
     @discardableResult
-    public mutating func splitTab(_ id: UUID, onto targetID: UUID) -> Bool {
+    public mutating func splitTab(_ id: UUID, onto targetID: UUID, at position: Int? = nil) -> Bool {
         let visible = visibleTabs.map(\.id)
         guard id != targetID, visible.contains(id), visible.contains(targetID) else { return false }
         let targetGroup = splitGroups.first { $0.tabIDs.contains(targetID) }
-        if targetGroup?.tabIDs.contains(id) == true { return true }
-        guard (targetGroup?.tabIDs.count ?? 1) < 4 else { return false }
-        _ = removeFromSplit(id)
-        selectTab(targetID)
-        guard addToSplit(id) else { return false }
+        let alreadyMember = targetGroup?.tabIDs.contains(id) == true
+        guard alreadyMember || (targetGroup?.tabIDs.count ?? 1) < 4 else { return false }
+        if !alreadyMember {
+            _ = removeFromSplit(id)
+            selectTab(targetID)
+            guard addToSplit(id) else { return false }
+        }
+        if let position, let group = splitGroups.first(where: { $0.tabIDs.contains(id) }) {
+            var ids = group.tabIDs.filter { $0 != id }
+            ids.insert(id, at: max(0, min(position, ids.count)))
+            _ = reorderSplit(group.id, tabIDs: ids)
+        }
         selectTab(id)
         return true
     }

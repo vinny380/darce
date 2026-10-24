@@ -64,3 +64,28 @@ private func group(_ state: BrowserState, containing id: UUID) -> [UUID]? {
     #expect(placed)
     #expect(state.splitGroups.isEmpty)
 }
+
+@Test func droppingOnTheLeftHalfPutsTheDraggedTabFirst() {
+    var (state, t) = todayTabs(2)
+    let split = state.splitTab(t[1], onto: t[0], at: 0)
+    #expect(split)
+    #expect(group(state, containing: t[0]) == [t[1], t[0]])
+}
+
+@Test func droppingBetweenPanesInsertsThere() {
+    var (state, t) = todayTabs(3)
+    _ = state.splitTab(t[1], onto: t[0])
+    let split = state.splitTab(t[2], onto: t[0], at: 1)
+    #expect(split)
+    #expect(group(state, containing: t[0]) == [t[0], t[2], t[1]])
+}
+
+@Test func draggingAPaneWithinItsSplitReordersIt() {
+    var (state, t) = todayTabs(3)
+    _ = state.splitTab(t[1], onto: t[0])
+    _ = state.splitTab(t[2], onto: t[0])
+    let moved = state.splitTab(t[2], onto: t[0], at: 0)
+    #expect(moved)
+    #expect(group(state, containing: t[0]) == [t[2], t[0], t[1]])
+    #expect(state.selectedTabID == t[2])
+}
