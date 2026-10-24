@@ -184,6 +184,13 @@ public struct BrowserState: Codable, Equatable, Sendable {
         return space.id
     }
 
+    /// Manage Spaces: puts a Space at `index` (clamped) in the order ⌃1…9 and swiping follow.
+    public mutating func moveSpace(_ id: UUID, to index: Int) {
+        guard let from = spaces.firstIndex(where: { $0.id == id }) else { return }
+        let space = spaces.remove(at: from)
+        spaces.insert(space, at: max(0, min(index, spaces.count)))
+    }
+
     public mutating func renameSpace(_ id: UUID, name: String) {
         guard let index = spaces.firstIndex(where: { $0.id == id }) else { return }
         spaces[index].name = cleaned(name, fallback: "Untitled Space")
