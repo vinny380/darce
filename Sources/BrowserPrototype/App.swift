@@ -35,6 +35,7 @@ struct BrowserPrototypeApp: App {
         if !isSmoke { ExternalLinkHandler.shared.install() }
         QuitConfirmation.enabled = !isSmoke
         ShortcutAliases.install()
+        MenuTracking.install()
     }
 
     var body: some Scene {
@@ -84,6 +85,9 @@ struct BrowserWindow: View {
     @State private var overlaySpace: UUID?
     @State private var swipeSwitching = false
     @State private var transitionID = 0
+    /// The hidden sidebar, slid out over the page because the pointer reached the window's left edge.
+    @State private var edgeRevealed = false
+    @State private var edgeHide: Task<Void, Never>?
     @State private var swipeWatchdog: Task<Void, Never>?
     @State private var lastSwipeDX: CGFloat = 0
 
@@ -243,6 +247,7 @@ struct BrowserWindow: View {
                 .padding(.trailing, 8).padding(.bottom, 8)
                 .padding(.leading, model.sidebarVisible ? 0 : 8)
             }
+            if !model.sidebarVisible && !model.libraryOpen { edgeSidebar }
             if let page = model.peekPage {
                 Color.black.opacity(0.20).ignoresSafeArea().onTapGesture { model.closePeek() }
                 VStack(spacing: 0) {
@@ -338,6 +343,62 @@ struct BrowserWindow: View {
             Button("Create") { model.addFolder(name); name = "" }
             Button("Cancel", role: .cancel) { name = "" }
         }
+    }
+
+    /// Like Arc: with the sidebar hidden, pushing the pointer to the left edge slides it out over the page;
+    /// moving away tucks it back after a moment (so a brief overshoot doesn't snap it shut).
+    @ViewBuilder private var edgeSidebar: some View {
+        Group {
+            if edgeRevealed {
+                BrowserSidebar(model: model, appearance: appearance, showArchive: $showArchive, showNewSpace: $showNewSpace, showNewFolder: $showNewFolder,
+                               spaceSlide: spaceSlide, spaceSlideProgress: slideProgress, floating: true)
+                    .frame(width: sidebarWidth)
+                    // The Space color is translucent; an opaque base keeps the page and header from showing through.
+                    .background {
+                        ZStack {
+                            Color(nsColor: .windowBackgroundColor)
+                            appearance.background(forSpace: model.state.selectedSpaceID, scheme: scheme)
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.18)))
+                    .shadow(color: .black.opacity(0.3), radius: 24, x: 6)
+                    .background(SpaceSwipeMonitor(onUpdate: handleSpaceSwipe))
+                    // Flush with the window's top so its first row lines up with the window buttons, as when docked.
+                    .padding([.leading, .bottom], 6)
+                    .onHover { inside in
+                        edgeHide?.cancel()
+                        guard !inside else { return }
+                        let width = sidebarWidth
+                        edgeHide = Task { @MainActor in
+                            // Hover also "leaves" when a right-click menu opens over the sidebar; wait until the
+                            // menu is gone and the pointer has really left the sidebar's strip.
+                            repeat {
+                                try? await Task.sleep(for: .milliseconds(350))
+                                guard !Task.isCancelled else { return }
+                            } while MenuTracking.isOpen || Self.pointerInLeadingStrip(width: width + 12)
+                            withAnimation(reduceMotion ? nil : .smooth(duration: 0.22)) { edgeRevealed = false }
+                        }
+                    }
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            } else {
+                Color.clear.frame(width: 6).contentShape(Rectangle())
+                    .onHover { inside in
+                        guard inside else { return }
+                        edgeHide?.cancel()
+                        withAnimation(reduceMotion ? nil : .spring(duration: 0.3, bounce: 0.12)) { edgeRevealed = true }
+                    }
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .onChange(of: model.sidebarVisible) { _, _ in edgeRevealed = false }
+    }
+
+    private static func pointerInLeadingStrip(width: CGFloat) -> Bool {
+        guard let window = NSApplication.shared.keyWindow else { return false }
+        let point = NSEvent.mouseLocation
+        return window.frame.contains(point) && point.x - window.frame.minX < width
     }
 
     @ViewBuilder private var content: some View {

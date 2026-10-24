@@ -10,6 +10,9 @@ struct BrowserSidebar: View {
     @Binding var showNewFolder: Bool
     var spaceSlide: CGFloat = 0
     var spaceSlideProgress: CGFloat = 0
+    /// Shown over the page from the window's left edge while the sidebar is hidden: the window buttons stay put,
+    /// and the sidebar button pins it open.
+    var floating = false
     @Environment(\.colorScheme) private var scheme
     private enum RenameTarget { case folder(UUID), tab(UUID), space(UUID) }
     private enum RemovalTarget { case folder(UUID), space(UUID, destination: UUID) }
@@ -42,17 +45,19 @@ struct BrowserSidebar: View {
             // Like Arc: the sidebar button sits at the leading edge, and the window buttons fade in (pushing it
             // aside) only while the pointer is on this row.
             HStack(spacing: 0) {
-                Color.clear.frame(width: windowControlsVisible ? 64 : 4)
-                Button { model.sidebarVisible = false } label: { Image(systemName: "sidebar.left") }
-                    .accessibilityLabel("Hide Sidebar").help("Hide Sidebar (⌘S)")
+                Color.clear.frame(width: windowControlsVisible || floating ? 64 : 4)
+                Button { model.sidebarVisible = floating } label: { Image(systemName: "sidebar.left") }
+                    .accessibilityLabel(floating ? "Keep Sidebar Open" : "Hide Sidebar").help(floating ? "Keep Sidebar Open (⌘S)" : "Hide Sidebar (⌘S)")
                 Spacer()
                 if let id = model.state.selectedTabID, let page = model.page(for: id) { NavigationControls(page: page, model: model) }
             }.buttonStyle(.plain).font(.system(size: 14, weight: .regular)).foregroundStyle(.secondary).frame(height: 33)
             .background {
-                PointerRegion { inside in
-                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.22)) { windowControlsVisible = inside }
+                if !floating {
+                    PointerRegion { inside in
+                        withAnimation(reduceMotion ? nil : .smooth(duration: 0.22)) { windowControlsVisible = inside }
+                    }
+                    WindowControlsVisibility(visible: windowControlsVisible)
                 }
-                WindowControlsVisibility(visible: windowControlsVisible)
             }
             AddressBar(model: model)
             favorites

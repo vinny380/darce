@@ -81,3 +81,22 @@ struct PointerRegion: NSViewRepresentable {
         override func mouseExited(with event: NSEvent) { onChange?(false) }
     }
 }
+
+/// Whether any menu (menu bar, context menu, pop-up) is open right now.
+@MainActor
+enum MenuTracking {
+    private(set) static var isOpen = false
+    private static var observers: [NSObjectProtocol] = []
+
+    static func install() {
+        guard observers.isEmpty else { return }
+        observers = [
+            NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { isOpen = true }
+            },
+            NotificationCenter.default.addObserver(forName: NSMenu.didEndTrackingNotification, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { isOpen = false }
+            },
+        ]
+    }
+}
