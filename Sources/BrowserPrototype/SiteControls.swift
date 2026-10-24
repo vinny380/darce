@@ -99,6 +99,10 @@ struct SiteControls: View {
                 Text("Extensions need macOS 15.4 or later.").font(.caption).foregroundStyle(.secondary)
             }
             Text("Settings").font(.system(size: 13, weight: .semibold))
+            if let host = url?.host {
+                PermissionRow(settings: model.settings, device: .camera, host: host)
+                PermissionRow(settings: model.settings, device: .microphone, host: host)
+            }
             if let page { ZoomRow(page: page) }
             Divider()
             HStack {
@@ -142,6 +146,37 @@ struct SiteControls: View {
             NSPasteboard.general.writeObjects([image])
             captured = true
         }
+    }
+}
+
+/// Arc-style settings row: what the site may use, and the current answer. Click to change it.
+private struct PermissionRow: View {
+    @ObservedObject var settings: SettingsController
+    let device: SiteDevice
+    let host: String
+
+    private var decision: SiteDecision { settings.state.permission(for: device, host: host) }
+
+    var body: some View {
+        Menu {
+            Picker(device == .camera ? "Camera" : "Microphone", selection: Binding(
+                get: { decision }, set: { value in settings.update { $0.setPermission(value, for: device, host: host) } })) {
+                Text("Ask").tag(SiteDecision.ask)
+                Text("Allow").tag(SiteDecision.allow)
+                Text("Block").tag(SiteDecision.block)
+            }.pickerStyle(.inline)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: device == .camera ? "video.fill" : "mic.fill").font(.system(size: 12, weight: .semibold))
+                    .frame(width: 30, height: 30).background(.primary.opacity(decision == .block ? 0.04 : 0.08), in: Circle())
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(device == .camera ? "Camera" : "Microphone").font(.system(size: 13, weight: .semibold))
+                    Text(decision == .ask ? "Ask" : decision == .allow ? "Allowed" : "Blocked").font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }.contentShape(Rectangle())
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
     }
 }
 

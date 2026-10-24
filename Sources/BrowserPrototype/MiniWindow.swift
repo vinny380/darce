@@ -161,6 +161,9 @@ final class MiniBrowser: ObservableObject {
         let profileID = profileID
         let page = BrowserPage(url: url, dataStore: model.dataStore(for: profileID), extensions: true)
         page.webView.pageZoom = model.settings.state.defaultZoom
+        page.onMediaRequest = { [weak model] host, camera, microphone in
+            model?.settings.state.mediaDecision(forHost: host, camera: camera, microphone: microphone) ?? .ask
+        }
         page.onNavigate = { [weak self] url, title in
             if let url { self?.currentURL = url }
             if let title { self?.title = title }

@@ -198,6 +198,9 @@ final class BrowserModel: ObservableObject {
         let page = BrowserPage(url: tab.url, dataStore: dataStore(for: profileID), extensions: true)
         page.owner = self
         page.tabID = id
+        page.onMediaRequest = { [weak self] host, camera, microphone in
+            self?.settings.state.mediaDecision(forHost: host, camera: camera, microphone: microphone) ?? .ask
+        }
         page.webView.pageZoom = settings.state.defaultZoom
         page.onNavigationStateChange = { [weak self, weak page] in
             guard let self, let page, !self.isWindowClosed, self.pages[id] === page,
@@ -351,6 +354,9 @@ final class BrowserModel: ObservableObject {
         let profileID = state.selectedProfileID
         let page = BrowserPage(url: url, dataStore: dataStore(for: profileID), extensions: true)
         page.webView.pageZoom = settings.state.defaultZoom
+        page.onMediaRequest = { [weak self] host, camera, microphone in
+            self?.settings.state.mediaDecision(forHost: host, camera: camera, microphone: microphone) ?? .ask
+        }
         page.onNewTab = { [weak self] in self?.open($0) }
         page.onNavigate = { [weak self] url, _ in if let url { self?.peekURL = url } }
         page.onVisit = { [weak self] url, title in self?.recordVisit(url: url, title: title, profileID: profileID) }
@@ -498,6 +504,8 @@ final class BrowserPage: NSObject, ObservableObject, WKNavigationDelegate, WKUID
     /// A link clicked with modifier keys held (⌥⌘ = mini window, ⇧ = Peek); true when handled.
     var onModifiedLink: ((URL, NSEvent.ModifierFlags) -> Bool)?
     var onFocus: (() -> Void)?
+    /// The saved per-site camera/microphone answer; nil (private windows) leaves WebKit's own prompt.
+    var onMediaRequest: ((_ host: String, _ camera: Bool, _ microphone: Bool) -> SiteDecision)?
     /// Whether extensions run in this page (never in private windows).
     let joinsExtensions: Bool
     /// The window and sidebar tab this page belongs to, for extensions' tabs and windows APIs.
@@ -597,6 +605,16 @@ final class BrowserPage: NSObject, ObservableObject, WKNavigationDelegate, WKUID
            ["http", "https"].contains(scheme), onLink?(url) == true {
             decisionHandler(.cancel)
         } else { decisionHandler(.allow) }
+    }
+    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo,
+                 type: WKMediaCaptureType, decisionHandler: @escaping @MainActor (WKPermissionDecision) -> Void) {
+        let camera = type == .camera || type == .cameraAndMicrophone
+        let microphone = type == .microphone || type == .cameraAndMicrophone
+        switch onMediaRequest?(origin.host, camera, microphone) ?? .ask {
+        case .allow: decisionHandler(.grant)
+        case .block: decisionHandler(.deny)
+        case .ask: decisionHandler(.prompt)
+        }
     }
     func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping @MainActor (WKNavigationResponsePolicy) -> Void) {
         decisionHandler(navigationResponse.canShowMIMEType ? .allow : .download)
