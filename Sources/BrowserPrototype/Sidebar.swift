@@ -110,8 +110,10 @@ struct BrowserSidebar: View {
                 .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: model.state.visibleTabs.map(\.id))
                 .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: model.state.visibleTabs.map(\.folderID))
             }.scrollIndicators(.hidden)
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)  // sideways swipes belong to Space switching
             .offset(x: spaceSlide)
             .opacity(1 - 0.75 * spaceSlideProgress)
+            .clipped()  // the slide stays inside the sidebar
             HStack(spacing: 4) {
                 Button { showArchive = true } label: { Image(systemName: "archivebox").frame(width: 30, height: 30) }
                     .help("Archive").accessibilityLabel("Archive")

@@ -75,6 +75,8 @@ struct BrowserWindow: View {
     @State private var overlaySpace: UUID?
     @State private var swipeSwitching = false
     @State private var transitionID = 0
+    @State private var swipeWatchdog: Task<Void, Never>?
+    @State private var lastSwipeDX: CGFloat = 0
 
     init(model: BrowserModel) {
         self.model = model
@@ -102,15 +104,35 @@ struct BrowserWindow: View {
         withAnimation(animation) { spaceSlide = 0 } completion: { if id == transitionID { overlaySpace = nil } }
     }
 
+    /// Jumps the content to `offset`, then springs it home. The jump must render first; written in the same
+    /// update, SwiftUI merges both and the content slides in from the side it left.
+    private func slideIn(from offset: CGFloat) {
+        withTransaction(Transaction(animation: nil)) { spaceSlide = offset }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(16))
+            settle(.spring(duration: 0.4, bounce: 0.12))
+        }
+    }
+
     private func handleSpaceSwipe(_ update: SpaceSwipeTracker.Update) {
         switch update {
         case .drag(let dx):
             guard !reduceMotion else { return }
+            // If the gesture's end event never arrives, settle anyway so the sidebar can't stay shifted.
+            lastSwipeDX = dx
+            swipeWatchdog?.cancel()
+            swipeWatchdog = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(600))
+                guard !Task.isCancelled else { return }
+                handleSpaceSwipe(.end(lastSwipeDX, velocity: 0))
+            }
             transitionID += 1
             let target = neighborSpace(next: dx < 0)
             overlaySpace = target
             spaceSlide = target == nil ? dx * 0.2 : max(-sidebarWidth, min(sidebarWidth, dx))  // rubber band at the ends
         case .end(let dx, let velocity):
+            swipeWatchdog?.cancel()
+            swipeWatchdog = nil
             let next = dx < 0
             let flick = abs(dx) > 12 && abs(velocity) > 6 && (velocity < 0) == next
             guard abs(dx) > 50 || flick, let target = neighborSpace(next: next) else {
@@ -119,15 +141,13 @@ struct BrowserWindow: View {
             }
             guard !reduceMotion else { model.selectSpace(target); return }
             transitionID += 1
-            let id = transitionID
             let width = sidebarWidth
+            // A committed swipe always finishes; dropping it would strand the content off-screen.
             withAnimation(.easeOut(duration: 0.12)) { spaceSlide = next ? -width : width } completion: {
-                guard id == transitionID else { return }
                 swipeSwitching = true
                 model.selectSpace(target)
                 overlaySpace = nil
-                withTransaction(Transaction(animation: nil)) { spaceSlide = next ? width * 0.45 : -width * 0.45 }
-                settle(.spring(duration: 0.4, bounce: 0.12))
+                slideIn(from: next ? width * 0.45 : -width * 0.45)
             }
         }
     }
@@ -138,8 +158,7 @@ struct BrowserWindow: View {
         let ids = model.state.spaces.map(\.id)
         guard !reduceMotion, let from = ids.firstIndex(of: old), let to = ids.firstIndex(of: new) else { return }
         overlaySpace = old
-        withTransaction(Transaction(animation: nil)) { spaceSlide = to > from ? sidebarWidth * 0.6 : -sidebarWidth * 0.6 }
-        settle(.spring(duration: 0.42, bounce: 0.1))
+        slideIn(from: to > from ? sidebarWidth * 0.6 : -sidebarWidth * 0.6)
     }
 
     var body: some View {
