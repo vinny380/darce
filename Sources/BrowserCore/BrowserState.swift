@@ -380,6 +380,25 @@ public struct BrowserState: Codable, Equatable, Sendable {
         return true
     }
 
+    /// Drag and drop: the tab joins a section of the selected Space (Favorites, Pinned or a folder, Today) and
+    /// lands before `targetID`, or at the section's end. Validates first, so a rejected drop changes nothing.
+    @discardableResult
+    public mutating func placeTab(_ id: UUID, kind: TabKind, folderID: UUID?, before targetID: UUID?) -> Bool {
+        guard kind != .archived, let index = tabs.firstIndex(where: { $0.id == id }), tabs[index].kind != .archived else { return false }
+        if targetID == id { return true }
+        let folderID = kind == .pinned ? folderID : nil
+        if let targetID {
+            guard let target = tabs.first(where: { $0.id == targetID }), target.kind == kind, target.folderID == folderID,
+                  isVisible(target, in: selectedSpaceID) else { return false }
+        }
+        if let folderID, !folders.contains(where: { $0.id == folderID && $0.spaceID == selectedSpaceID }) { return false }
+        if tabs[index].kind != kind { setKind(id, kind: kind) }
+        // Favorites are shared across a profile's Spaces; everything else belongs to the Space it was dropped in.
+        if kind != .favorite || !isVisible(tabs[index], in: selectedSpaceID) { tabs[index].spaceID = selectedSpaceID }
+        tabs[index].folderID = folderID
+        return reorderTab(id, before: targetID)
+    }
+
     public mutating func resetPinnedTab(_ id: UUID, now: Date = Date()) {
         guard let index = tabs.firstIndex(where: { $0.id == id }),
               tabs[index].kind == .pinned || tabs[index].kind == .favorite,
