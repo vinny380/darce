@@ -392,6 +392,7 @@ public struct BrowserState: Codable, Equatable, Sendable {
                   isVisible(target, in: selectedSpaceID) else { return false }
         }
         if let folderID, !folders.contains(where: { $0.id == folderID && $0.spaceID == selectedSpaceID }) { return false }
+        _ = removeFromSplit(id)  // dragging a pane somewhere else takes it out of its split
         if tabs[index].kind != kind { setKind(id, kind: kind) }
         // Favorites are shared across a profile's Spaces; everything else belongs to the Space it was dropped in.
         if kind != .favorite || !isVisible(tabs[index], in: selectedSpaceID) { tabs[index].spaceID = selectedSpaceID }
@@ -565,6 +566,22 @@ extension BrowserState {
         splitGroups[index].weights.remove(at: member)
         if splitGroups[index].tabIDs.count < 2 { splitGroups.remove(at: index) }
         else { normalizeSplit(at: index) }
+        return true
+    }
+
+    /// Drag and drop onto a sidebar tab: the dragged tab joins the target's split (or starts one) and takes focus.
+    /// A pane dragged from another split leaves it. Validates first, so a rejected drop changes nothing.
+    @discardableResult
+    public mutating func splitTab(_ id: UUID, onto targetID: UUID) -> Bool {
+        let visible = visibleTabs.map(\.id)
+        guard id != targetID, visible.contains(id), visible.contains(targetID) else { return false }
+        let targetGroup = splitGroups.first { $0.tabIDs.contains(targetID) }
+        if targetGroup?.tabIDs.contains(id) == true { return true }
+        guard (targetGroup?.tabIDs.count ?? 1) < 4 else { return false }
+        _ = removeFromSplit(id)
+        selectTab(targetID)
+        guard addToSplit(id) else { return false }
+        selectTab(id)
         return true
     }
 
