@@ -62,7 +62,16 @@ public enum BoostTextSize: String, Codable, CaseIterable, Sendable {
 public enum BoostStyle {
     /// Arc's selector: every element except the common icon fonts, so icons don't turn into letters.
     static let textSelector = "*:not(i, .material-symbols-outlined, .material-icons)"
-    public static let filterID = "darce-boost-color"
+    /// The SVG filter's id, unique to the colors: WebKit keeps showing a filter while CSS points at the same id,
+    /// so reusing one id would freeze the page on the first color picked.
+    public static func filterID(for boost: BrowserBoost) -> String? {
+        guard let matrix = colorMatrix(for: boost) else { return nil }
+        var hash: UInt64 = 0xcbf29ce484222325  // FNV-1a over the rounded matrix
+        for value in matrix.map({ String(format: "%.4f", $0) }).joined(separator: " ").utf8 {
+            hash = (hash ^ UInt64(value)) &* 0x100000001b3
+        }
+        return "darce-boost-" + String(hash, radix: 16)
+    }
 
     /// Arc's Boost fonts, in its stored order, plus the label font next to its Size/Case controls.
     public static let fonts = ["Helvetica Neue", "Avenir", "Futura", "DIN Alternate", "PT Mono", "Courier", "Times New Roman",
@@ -80,8 +89,8 @@ public enum BoostStyle {
         if let size = boost.textSize, size != .normal {
             rules.append("html { zoom: \(size.factor) !important; }")
         }
-        if boost.colors != nil {
-            rules.append("html { filter: url(#\(filterID)) !important; }")
+        if let id = filterID(for: boost) {
+            rules.append("html { filter: url(#\(id)) !important; }")
         }
         return rules.joined(separator: "\n")
     }

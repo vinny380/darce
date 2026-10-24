@@ -57,6 +57,18 @@ private func close(_ a: [Double], _ b: [Double]) -> Bool { zip(a, b).allSatisfy 
     #expect(red[0] > red[1] && red[0] > red[2])  // a red link stays reddish under the tint
 }
 
+/// WebKit keeps showing a filter while the CSS still points at the same id, so every color change must
+/// produce a new id (or the page stays on the first color), and the same colors the same id (no needless redraw).
+@Test func eachColorGetsItsOwnFilterID() throws {
+    let green = boost { $0.colors = BoostColors(hue: 120, saturation: 0.8) }
+    let red = boost { $0.colors = BoostColors(hue: 0, saturation: 0.8) }
+    let greenID = try #require(BoostStyle.filterID(for: green))
+    #expect(greenID != BoostStyle.filterID(for: red))
+    #expect(greenID == BoostStyle.filterID(for: boost { $0.colors = BoostColors(hue: 120, saturation: 0.8) }))
+    #expect(BoostStyle.css(for: green).contains("url(#\(greenID))"))
+    #expect(BoostStyle.filterID(for: boost()) == nil)
+}
+
 @Test func boostsSavedBeforeTheseControlsStillLoad() throws {
     let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
     defer { try? FileManager.default.removeItem(at: url) }
