@@ -227,7 +227,7 @@ private struct ShortcutSettings: View {
         ("Pin / Unpin Tab", "⌘D"), ("Previous Space", "⌥⌘←"), ("Previous Tab", "⌥⌘↑"), ("Print", "⌘P"),
         ("Reload", "⌘R"), ("Reload from Origin", "⇧⌘R"), ("Reopen Last Archived Tab", "⇧⌘T"), ("Settings", "⌘,"),
         ("Stop Loading", "⌘."), ("Switch to Recent Tab", "⌃Tab"), ("Switch to Space 1–9", "⌃1 … ⌃9"),
-        ("Toggle Sidebar", "⌘S"), ("Undo Close Tab", "⌘Z"), ("Zoom In", "⌘+"), ("Zoom Out", "⌘-"), ("Actual Size", "⌘0"),
+        ("Toggle Sidebar", "⌘S"), ("Toggle Developer Mode for This Site", "⌃D"), ("Developer Tools", "⌥⌘I"), ("JavaScript Console", "⌥⌘J"), ("Inspect Elements", "⌥⌘C"), ("Undo Close Tab", "⌘Z"), ("Zoom In", "⌘+"), ("Zoom Out", "⌘-"), ("Actual Size", "⌘0"),
     ]
 
     private var filtered: [(name: String, keys: String)] {

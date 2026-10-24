@@ -7,7 +7,6 @@ import UniformTypeIdentifiers
 struct AddressBar: View {
     @ObservedObject var model: BrowserModel
     @Environment(\.colorScheme) private var scheme
-    @State private var showControls = false
     @State private var copied = false
 
     private var url: URL? { model.state.selectedTab.flatMap { model.page(for: $0.id)?.webView.url ?? $0.url } }
@@ -32,8 +31,8 @@ struct AddressBar: View {
                     copied = true
                     Task { try? await Task.sleep(for: .seconds(1.2)); copied = false }
                 }
-                SidebarIconButton(symbol: "slider.horizontal.3", help: "Site Controls", filled: showControls) { showControls.toggle() }
-                    .popover(isPresented: $showControls, arrowEdge: .bottom) { SiteControls(model: model, close: { showControls = false }) }
+                SidebarIconButton(symbol: "slider.horizontal.3", help: "Site Controls", filled: model.siteControlsVisible) { model.siteControlsVisible.toggle() }
+                    .popover(isPresented: $model.siteControlsVisible, arrowEdge: .bottom) { SiteControls(model: model, close: { model.siteControlsVisible = false }) }
             }
         }
         .padding(.leading, 12).padding(.trailing, 4).frame(height: 36)
@@ -103,6 +102,7 @@ struct SiteControls: View {
                 PermissionRow(settings: model.settings, device: .camera, host: host)
                 PermissionRow(settings: model.settings, device: .microphone, host: host)
             }
+            if url?.host != nil { DeveloperModeRow(model: model, settings: model.settings) }
             if let page { ZoomRow(page: page) }
             Divider()
             HStack {
@@ -177,6 +177,26 @@ private struct PermissionRow: View {
             }.contentShape(Rectangle())
         }
         .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
+    }
+}
+
+/// Arc's "Developer Mode" site setting (hammer): on shows the developer bar for this site.
+private struct DeveloperModeRow: View {
+    @ObservedObject var model: BrowserModel
+    @ObservedObject var settings: SettingsController
+
+    var body: some View {
+        Button { model.toggleDeveloperMode() } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "hammer.fill").font(.system(size: 12, weight: .semibold)).frame(width: 30, height: 30)
+                    .background(.primary.opacity(model.isDeveloperModeOn ? 0.16 : 0.08), in: Circle())
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Developer Mode").font(.system(size: 13, weight: .semibold))
+                    Text(model.isDeveloperModeOn ? "On" : "Off").font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }.contentShape(Rectangle())
+        }.buttonStyle(.plain).help("Turn \(model.isDeveloperModeOn ? "off" : "on") Developer Mode for this site (⌃D)")
     }
 }
 

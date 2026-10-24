@@ -46,7 +46,7 @@ struct BrowserSidebar: View {
                 Button { model.sidebarVisible = false } label: { Image(systemName: "sidebar.left") }
                     .accessibilityLabel("Hide Sidebar").help("Hide Sidebar (⌘S)")
                 Spacer()
-                if let id = model.state.selectedTabID, let page = model.page(for: id) { NavigationControls(page: page) }
+                if let id = model.state.selectedTabID, let page = model.page(for: id) { NavigationControls(page: page, model: model) }
             }.buttonStyle(.plain).font(.system(size: 14, weight: .regular)).foregroundStyle(.secondary).frame(height: 33)
             .background {
                 PointerRegion { inside in
@@ -378,6 +378,14 @@ struct BrowserSidebar: View {
                                   guard model.canResetSidebarTab(tab.id, isEditing: isRenamingTab(tab.id)) else { return }
                                   model.resetPin(tab.id)
                               }, close: { model.archive(tab.id) })
+                    // Arc marks Developer Mode tabs with a dashed outline.
+                    .overlay {
+                        if model.isDeveloperTab(tab) {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(Color.yellow.opacity(0.9), style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
+                                .padding(.vertical, 1).allowsHitTesting(false)
+                        }
+                    }
                     .contextMenu { tabActions(tab) }
                     .tabDragSource(tab.id, dragging: $draggingTab) { dragPreview(tab) }
             }
@@ -533,13 +541,23 @@ struct BrowserSidebar: View {
 
 private struct NavigationControls: View {
     @ObservedObject var page: BrowserPage
+    @ObservedObject var model: BrowserModel
     var body: some View {
         HStack(spacing: 12) {
             Button { page.webView.goBack() } label: { Image(systemName: "arrow.left") }.disabled(!page.canGoBack).accessibilityLabel("Back")
             Button { page.webView.goForward() } label: { Image(systemName: "arrow.right") }.disabled(!page.canGoForward).accessibilityLabel("Forward")
-            Button { if page.loading { page.webView.stopLoading() } else { page.webView.reload() } } label: {
-                Image(systemName: page.loading ? "xmark" : "arrow.clockwise")
-            }.accessibilityLabel(page.loading ? "Stop loading" : "Reload")
+            if model.isDeveloperModeOn && !page.loading {
+                // Developer Mode adds Arc's reload options.
+                Menu {
+                    Button("Refresh (Ignore Cache)") { page.webView.reloadFromOrigin() }
+                    Button("Clear Cookies and Refresh") { model.clearCookiesAndReload() }
+                } label: { Image(systemName: "arrow.clockwise") } primaryAction: { page.webView.reload() }
+                    .menuStyle(.button).buttonStyle(.plain).menuIndicator(.visible).fixedSize().accessibilityLabel("Reload options")
+            } else {
+                Button { if page.loading { page.webView.stopLoading() } else { page.webView.reload() } } label: {
+                    Image(systemName: page.loading ? "xmark" : "arrow.clockwise")
+                }.accessibilityLabel(page.loading ? "Stop loading" : "Reload")
+            }
         }
     }
 }

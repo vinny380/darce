@@ -309,7 +309,13 @@ struct BrowserWindow: View {
 
     @ViewBuilder private var content: some View {
         if let id = model.state.selectedTabID, let page = model.page(for: id) {
-            BrowserPane(page: page).id(id).clipShape(RoundedRectangle(cornerRadius: 10))
+            VStack(spacing: 0) {
+                if model.isDeveloperModeOn {
+                    let tint = appearance.state.space(model.state.selectedSpaceID).tint
+                    DeveloperBar(model: model, page: page, tint: Color(.sRGB, red: tint.red, green: tint.green, blue: tint.blue))
+                }
+                BrowserPane(page: page).id(id)
+            }.clipShape(RoundedRectangle(cornerRadius: 10))
         } else {
             Button { model.commandMode = .newTab } label: {
                 VStack(spacing: 12) {
@@ -353,7 +359,21 @@ struct BrowserPane: View {
 
 struct WebContent: NSViewRepresentable {
     let page: BrowserPage
-    func makeNSView(context: Context) -> WKWebView { page.webView }
-    func updateNSView(_ nsView: WKWebView, context: Context) {}
+    func makeNSView(context: Context) -> WebContainer { WebContainer(page.webView) }
+    func updateNSView(_ nsView: WebContainer, context: Context) {}
+}
+
+/// The page sits in its own container, as in other browsers, so WebKit's docked Web Inspector has a superview
+/// to share: it inserts itself beside the page and shrinks it, which SwiftUI's own layout wouldn't allow.
+final class WebContainer: NSView {
+    init(_ webView: WKWebView) {
+        super.init(frame: .zero)
+        webView.removeFromSuperview()
+        webView.frame = bounds
+        webView.autoresizingMask = [.width, .height]
+        addSubview(webView)
+    }
+
+    required init?(coder: NSCoder) { nil }
 }
 

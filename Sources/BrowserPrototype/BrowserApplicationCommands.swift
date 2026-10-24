@@ -53,6 +53,18 @@ struct BrowserApplicationCommands: Commands {
                 }.keyboardShortcut("w").disabled(MiniWindows.shared.active == nil && (privateWindows.isPrivateWindowActive ? privateWindows.activeSession?.selectedTabID == nil : activeModel.state.selectedTab?.kind != .today))
                 Button("Close Browser Window") { NSApplication.shared.keyWindow?.performClose(nil) }.keyboardShortcut("w", modifiers: [.command, .shift])
             }
+            CommandGroup(after: .toolbar) {
+                Menu("Developer") {
+                    Button(activeModel.isDeveloperModeOn ? "Turn Off Developer Mode for This Site" : "Turn On Developer Mode for This Site") {
+                        activeModel.toggleDeveloperMode()
+                    }.keyboardShortcut("d", modifiers: .control)
+                    Divider()
+                    Button("Developer Tools") { activeModel.openInspector(.tools) }.keyboardShortcut("i", modifiers: [.command, .option])
+                    Button("JavaScript Console") { activeModel.openInspector(.console) }.keyboardShortcut("j", modifiers: [.command, .option])
+                    Button("Inspect Elements") { activeModel.openInspector(.pickElement) }.keyboardShortcut("c", modifiers: [.command, .option])
+                    Button("Network and Resources") { activeModel.openInspector(.resources) }
+                }.disabled(privateWindows.isPrivateWindowActive || activeModel.state.selectedTab == nil)
+            }
             CommandGroup(before: .windowArrangement) {
                 Group {
                 Button("Pin / Unpin Tab") {

@@ -18,6 +18,7 @@ final class BrowserModel: ObservableObject {
     }
     @Published var panel: LibraryPanel?
     @Published var showFind = false
+    @Published var siteControlsVisible = false
     var history: HistoryStore? { workspace.history }
     var secondaryTabID: UUID? { state.selectedSplitGroup?.tabIDs.first { $0 != state.selectedTabID } }
     @Published private(set) var peekPage: BrowserPage?
@@ -519,6 +520,7 @@ final class BrowserPage: NSObject, ObservableObject, WKNavigationDelegate, WKUID
         configuration.websiteDataStore = dataStore
         joinsExtensions = extensions
         if extensions { Extensions.attach(configuration) }
+        WebInspector.enableDeveloperExtras(configuration)
         webView = FocusReportingWebView(frame: .zero, configuration: configuration)
         super.init()
         (webView as? FocusReportingWebView)?.onPaneFocus = { [weak self] in self?.onFocus?() }

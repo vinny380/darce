@@ -70,6 +70,12 @@
   </tr>
   <tr>
     <td valign="top" colspan="2">
+      <h3>🔨 Developer Mode</h3>
+      Per site, like Arc (<kbd>⌃</kbd><kbd>D</kbd>, on by default for localhost): a striped bar with console, network and inspect buttons opening WebKit's Web Inspector, a dashed outline on the tab, and reload options to ignore the cache or clear cookies.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top" colspan="2">
       <h3>🧩 Extensions</h3>
       Most Chrome extensions run: paste a Chrome Web Store link, or open an extension's store page and click <b>Add to D'arce</b> in site controls. Uses WebKit's Web Extensions engine (macOS 15.4+). Built on WebKit and SwiftUI; the download is about 2&nbsp;MB.
     </td>
