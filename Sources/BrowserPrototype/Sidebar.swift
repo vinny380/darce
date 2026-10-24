@@ -21,6 +21,7 @@ struct BrowserSidebar: View {
     /// The tab being dragged from this sidebar, so drop previews can show it.
     @State private var draggingTab: UUID?
     @State private var headerHovered = false
+    @State private var windowControlsVisible = false
     @State private var rowWidth: CGFloat = 220
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -37,13 +38,21 @@ struct BrowserSidebar: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            HStack {
-                Spacer(minLength: 76)
+            // Like Arc: the sidebar button sits at the leading edge, and the window buttons fade in (pushing it
+            // aside) only while the pointer is on this row.
+            HStack(spacing: 0) {
+                Color.clear.frame(width: windowControlsVisible ? 64 : 4)
                 Button { model.sidebarVisible = false } label: { Image(systemName: "sidebar.left") }
                     .accessibilityLabel("Hide Sidebar").help("Hide Sidebar (⌘S)")
                 Spacer()
                 if let id = model.state.selectedTabID, let page = model.page(for: id) { NavigationControls(page: page) }
-            }.buttonStyle(.plain).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary).frame(height: 33)
+            }.buttonStyle(.plain).font(.system(size: 14, weight: .regular)).foregroundStyle(.secondary).frame(height: 33)
+            .background {
+                PointerRegion { inside in
+                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.22)) { windowControlsVisible = inside }
+                }
+                WindowControlsVisibility(visible: windowControlsVisible)
+            }
             Button { model.commandMode = .location } label: {
                 HStack(spacing: 8) {
                     Image(systemName: model.state.selectedTab == nil ? "magnifyingglass" : "globe").font(.system(size: 10))
@@ -282,7 +291,7 @@ struct BrowserSidebar: View {
                     } isTargeted: { targeting("tab:\(tab.id)")($0) }
             }
         }
-        .frame(minHeight: tabs.isEmpty ? 22 : 0)
+        .frame(minHeight: tabs.isEmpty ? 10 : 0)
         .overlay {
             if tabs.isEmpty, dropTarget == "favorites" {
                 Text("Add to Favorites").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)

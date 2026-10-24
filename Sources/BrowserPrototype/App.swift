@@ -199,6 +199,7 @@ struct BrowserWindow: View {
                             Button { model.commandMode = .location } label: { Text(model.state.selectedTab?.url.host ?? "Search or Enter URL…") }
                             Spacer()
                         }.buttonStyle(.plain).padding(.leading, 78).padding(.trailing, 12).frame(height: 38)
+                        .background(WindowControlsVisibility(visible: true))  // no sidebar: keep the window buttons
                     }
                     if let error = appearance.errorMessage {
                         Text(error).font(.callout).foregroundStyle(.red).padding(10)
