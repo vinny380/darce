@@ -16,10 +16,6 @@ struct BrowserApplicationCommands: Commands {
 
     var body: some Commands {
             BrowserNavigationCommands(model: activeModel)
-            CommandGroup(replacing: .appSettings) {
-                Button("Settings…") { activeModel.panel = .settings }.keyboardShortcut(",")
-                    .disabled(privateWindows.isPrivateWindowActive)
-            }
             CommandGroup(replacing: .newItem) {
                 Button("New Window") {
                     normalWindows.open(workspace: activeModel.workspace, selection: BrowserWindowSelection(state: activeModel.state))

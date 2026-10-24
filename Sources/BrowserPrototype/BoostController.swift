@@ -8,6 +8,8 @@ import WebKit
 @MainActor
 final class BoostController: ObservableObject {
     @Published private(set) var boosts: [BrowserBoost] = []
+    /// Settings → Advanced → Enable Boosts. Off injects an empty boost script, which removes any applied ones.
+    var globallyEnabled = true
     @Published var errorMessage: String?
     let recoveryRequired: Bool
     var onChange: (() -> Void)?
@@ -48,7 +50,7 @@ final class BoostController: ObservableObject {
     }
 
     func script(profileID: UUID) throws -> String {
-        let payload: [[String: Any]] = boosts.filter { $0.profileID == profileID && $0.enabled }.map {
+        let payload: [[String: Any]] = boosts.filter { globallyEnabled && $0.profileID == profileID && $0.enabled }.map {
             ["id": $0.id.uuidString, "host": $0.host, "css": $0.css,
              "javascript": $0.javascript ?? "", "selectors": $0.hiddenSelectors,
              "scriptVersion": SHA256.hash(data: Data(($0.javascript ?? "").utf8)).map { String(format: "%02x", $0) }.joined()]

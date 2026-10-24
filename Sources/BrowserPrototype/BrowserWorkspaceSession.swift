@@ -51,6 +51,14 @@ final class BrowserWorkspaceSession: ObservableObject {
         appearance.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &observations)
         settings.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &observations)
         boosts.onChange = { [weak self] in self?.liveModels.forEach { $0.refreshBoosts() } }
+        boosts.globallyEnabled = settings.state.boostsEnabled
+        settings.onChange = { [weak self] state in
+            guard let self else { return }
+            GlobalMiniWindowShortcut.shared.setEnabled(state.globalMiniWindowShortcut)
+            guard self.boosts.globallyEnabled != state.boostsEnabled else { return }
+            self.boosts.globallyEnabled = state.boostsEnabled
+            self.liveModels.forEach { $0.refreshBoosts() }
+        }
     }
 
     private var liveModels: [BrowserModel] { models.values.compactMap(\.value) }

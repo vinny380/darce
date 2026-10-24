@@ -59,8 +59,40 @@ public struct BrowserSettings: Codable, Equatable, Sendable {
     public private(set) var autoArchiveAgeByProfile: [UUID: AutoArchiveAge]?
     public var pinnedExternalLinksOpenPeek = true
     public var defaultZoom: Double = 1
+    // Added with the Arc-style Settings window. Stored as optionals so older settings files still decode;
+    // nil means the default named in each accessor.
+    private var searchEngineByProfile: [UUID: SearchEngine]?
+    private var shiftClickPeek: Bool?
+    private var optionCommandClickMini: Bool?
+    private var externalLinksMini: Bool?
+    private var globalMiniShortcut: Bool?
+    private var boosts: Bool?
+    private var haptics: Bool?
+    private var fullURL: Bool?
 
     public init() {}
+
+    public func searchEngine(forProfile id: UUID) -> SearchEngine { searchEngineByProfile?[id] ?? searchEngine }
+
+    public mutating func setSearchEngine(_ engine: SearchEngine?, forProfile id: UUID) {
+        var overrides = searchEngineByProfile ?? [:]
+        overrides[id] = engine
+        searchEngineByProfile = overrides.isEmpty ? nil : overrides
+    }
+
+    /// Shift-click a link to preview it in a Peek.
+    public var shiftClickOpensPeek: Bool { get { shiftClickPeek ?? true } set { shiftClickPeek = newValue } }
+    /// ⌥⌘-click a link to open it in a mini window.
+    public var optionCommandClickOpensMiniWindow: Bool { get { optionCommandClickMini ?? true } set { optionCommandClickMini = newValue } }
+    /// Links from other apps (when D'arce is the default browser) open in a mini window instead of a tab.
+    public var externalLinksOpenInMiniWindow: Bool { get { externalLinksMini ?? true } set { externalLinksMini = newValue } }
+    /// ⌥⌘N opens a mini window from any app. Off by default: it would take over Finder's New Smart Folder.
+    public var globalMiniWindowShortcut: Bool { get { globalMiniShortcut ?? false } set { globalMiniShortcut = newValue } }
+    public var boostsEnabled: Bool { get { boosts ?? true } set { boosts = newValue } }
+    /// A tap from the trackpad when a dragged tab lands.
+    public var hapticFeedback: Bool { get { haptics ?? true } set { haptics = newValue } }
+    /// The sidebar's address field shows the whole URL rather than the site name.
+    public var showFullURL: Bool { get { fullURL ?? false } set { fullURL = newValue } }
 
     public func autoArchiveAge(forProfile id: UUID) -> AutoArchiveAge {
         autoArchiveAgeByProfile?[id] ?? autoArchiveAge

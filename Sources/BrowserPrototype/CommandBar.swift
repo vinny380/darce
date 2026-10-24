@@ -5,6 +5,7 @@ import SwiftUI
 struct BrowserCommandBar: View {
     @ObservedObject var model: BrowserModel
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.openSettings) private var openSettings
     @State private var query = ""
     @State private var selected = 0
 
@@ -25,7 +26,7 @@ struct BrowserCommandBar: View {
         let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
         var results: [Suggestion] = []
         if !search.isEmpty, BrowserModel.destination(search) != nil {
-            results.append(Suggestion(id: "navigate", title: search, detail: search.contains(".") ? "Go to website" : "Search \(model.settings.state.searchEngine.name)", icon: "magnifyingglass") {
+            results.append(Suggestion(id: "navigate", title: search, detail: search.contains(".") ? "Go to website" : "Search \(model.settings.state.searchEngine(forProfile: model.state.selectedProfileID).name)", icon: "magnifyingglass") {
                 if model.commandMode == .split, let url = model.destination(search) { model.openInSplit(url) }
                 else { model.submit(search, newTab: model.commandMode == .newTab) }
             })
@@ -54,7 +55,7 @@ struct BrowserCommandBar: View {
             Suggestion(id: "history", title: "History", detail: "Search this profile's visits", icon: "clock") { model.panel = .history },
             Suggestion(id: "downloads", title: "Downloads", detail: "View downloaded files", icon: "arrow.down.circle") { model.panel = .downloads },
             Suggestion(id: "documents", title: "Notes & Easels", detail: "Local notes and page captures", icon: "note.text") { model.panel = .documents },
-            Suggestion(id: "settings", title: "Settings", detail: "Search, tabs and websites", icon: "gearshape") { model.panel = .settings },
+            Suggestion(id: "settings", title: "Settings", detail: "Search, tabs and websites", icon: "gearshape") { openSettings() },
             Suggestion(id: "appearance", title: "Customize Space", detail: "Color, icon and layout", icon: "paintpalette") { model.panel = .appearance },
             Suggestion(id: "profiles", title: "Profiles", detail: "Separate website sign-ins", icon: "person.crop.circle") { model.panel = .profiles },
             Suggestion(id: "split-separate", title: "Separate Tab", detail: "Show this page on its own", icon: "arrow.up.right.square") {

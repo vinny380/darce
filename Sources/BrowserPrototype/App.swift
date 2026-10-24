@@ -38,7 +38,10 @@ struct BrowserPrototypeApp: App {
         Window("D'arce", id: "main") {
             BrowserWindow(model: model)
                 .background(BrowserWindowRegistration(model: model))
-                .onAppear { MiniWindows.shared.primaryModel = model }
+                .onAppear {
+                    MiniWindows.shared.primaryModel = model
+                    GlobalMiniWindowShortcut.shared.setEnabled(model.settings.state.globalMiniWindowShortcut)
+                }
                 .frame(minWidth: 800, minHeight: 540)
                 .task {
                     if let windowLifecycleOutput {
@@ -57,6 +60,7 @@ struct BrowserPrototypeApp: App {
         .defaultSize(width: 1180, height: 780)
         .windowStyle(.hiddenTitleBar)
         .commands { BrowserApplicationCommands(model: model) }
+        Settings { SettingsWindow(model: model) }
     }
 }
 
@@ -273,7 +277,6 @@ struct BrowserWindow: View {
                 let profileID = model.state.selectedProfileID
                 DocumentsView(controller: model.documents, profileID: profileID,
                               captureCurrentPage: { await model.captureCurrentPage(profileID: profileID) })
-            case .settings: SettingsView(controller: model.settings, profiles: model.state.profiles)
             case .profiles: ProfilesView(model: model)
             case .history: HistoryView(model: model)
             case .downloads: DownloadsView(manager: model.downloads, profileID: model.state.selectedProfileID, resume: model.resumeDownload)

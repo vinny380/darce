@@ -5,7 +5,7 @@ import Foundation
 import WebKit
 
 enum CommandMode { case newTab, location, split }
-enum LibraryPanel: String, Identifiable { case profiles, history, downloads, appearance, boosts, settings, documents, browsingData; var id: String { rawValue } }
+enum LibraryPanel: String, Identifiable { case profiles, history, downloads, appearance, boosts, documents, browsingData; var id: String { rawValue } }
 
 @MainActor
 final class BrowserModel: ObservableObject {
@@ -162,7 +162,7 @@ final class BrowserModel: ObservableObject {
     private func teardown(_ page: BrowserPage) {
         page.onNavigate = nil; page.onVisit = nil; page.onFinish = nil
         page.onNavigationStateChange = nil
-        page.onNewTab = nil; page.onDownload = nil; page.onLink = nil; page.onFocus = nil
+        page.onNewTab = nil; page.onDownload = nil; page.onLink = nil; page.onModifiedLink = nil; page.onFocus = nil
         page.cancelElementPicker()
         page.webView.stopLoading()
         page.webView.navigationDelegate = nil
@@ -209,6 +209,19 @@ final class BrowserModel: ObservableObject {
         }
         page.onDownload = { [weak self] download in _ = self?.downloads.accept(download: download, profileID: profileID) }
         page.onNewTab = { [weak self] url in self?.open(url) }
+        page.onModifiedLink = { [weak self] url, flags in
+            guard let self else { return false }
+            let settings = self.settings.state
+            if flags.contains([.option, .command]), settings.optionCommandClickOpensMiniWindow {
+                MiniWindows.shared.open(url: url, model: self)
+                return true
+            }
+            if flags.contains(.shift), !flags.contains(.command), !flags.contains(.option), settings.shiftClickOpensPeek {
+                self.showPeek(url)
+                return true
+            }
+            return false
+        }
         page.onLink = { [weak self] url in
             guard let self, self.settings.state.pinnedExternalLinksOpenPeek, let tab = self.state.tabs.first(where: { $0.id == id }),
                   tab.kind == .pinned || tab.kind == .favorite else { return false }
@@ -255,12 +268,23 @@ final class BrowserModel: ObservableObject {
     }
     func move(_ id: UUID, into folder: UUID?) { stateUpdate { _ = $0.moveTab(id, into: folder) } }
     /// Drag one sidebar tab onto another; see `BrowserState.splitTab`.
-    func splitTab(_ id: UUID, onto target: UUID, at slot: Int? = nil) { stateUpdate { _ = $0.splitTab(id, onto: target, at: slot) } }
+    func splitTab(_ id: UUID, onto target: UUID, at slot: Int? = nil) {
+        var split = false
+        stateUpdate { split = $0.splitTab(id, onto: target, at: slot) }
+        if split { dropFeedback() }
+    }
+
+    /// A light trackpad tap when a dragged tab lands, like Arc.
+    private func dropFeedback() {
+        guard settings.state.hapticFeedback else { return }
+        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+    }
     /// Drag and drop into any sidebar section; see `BrowserState.placeTab`.
     @discardableResult
     func place(_ id: UUID, kind: TabKind, folder: UUID? = nil, before target: UUID? = nil) -> Bool {
         var placed = false
         stateUpdate { placed = $0.placeTab(id, kind: kind, folderID: folder, before: target) }
+        if placed { dropFeedback() }
         return placed
     }
     func focusPane(_ id: UUID) {
@@ -419,7 +443,7 @@ final class BrowserModel: ObservableObject {
     }
 
     func destination(_ input: String) -> URL? {
-        Self.destination(input, searchEngine: settings.state.searchEngine)
+        Self.destination(input, searchEngine: settings.state.searchEngine(forProfile: state.selectedProfileID))
     }
 
     static func destination(_ input: String, searchEngine: SearchEngine = .duckDuckGo) -> URL? {
@@ -450,6 +474,8 @@ final class BrowserPage: NSObject, ObservableObject, WKNavigationDelegate, WKUID
     var onDownload: ((WKDownload) -> Void)?
     var onNewTab: ((URL) -> Void)?
     var onLink: ((URL) -> Bool)?
+    /// A link clicked with modifier keys held (⌥⌘ = mini window, ⇧ = Peek); true when handled.
+    var onModifiedLink: ((URL, NSEvent.ModifierFlags) -> Bool)?
     var onFocus: (() -> Void)?
     private var titleObservation: NSKeyValueObservation?
     private var navigationObservations: [NSKeyValueObservation] = []
@@ -533,7 +559,11 @@ final class BrowserPage: NSObject, ObservableObject, WKNavigationDelegate, WKUID
             decisionHandler(.cancel)
             return
         }
-        if navigationAction.navigationType == .linkActivated,
+        if navigationAction.navigationType == .linkActivated, ["http", "https"].contains(scheme),
+           !navigationAction.modifierFlags.intersection([.shift, .option, .command]).isEmpty,
+           onModifiedLink?(url, navigationAction.modifierFlags) == true {
+            decisionHandler(.cancel)
+        } else if navigationAction.navigationType == .linkActivated,
            navigationAction.targetFrame?.isMainFrame == true,
            ["http", "https"].contains(scheme), onLink?(url) == true {
             decisionHandler(.cancel)

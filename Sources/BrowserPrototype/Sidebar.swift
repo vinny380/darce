@@ -56,7 +56,7 @@ struct BrowserSidebar: View {
             Button { model.commandMode = .location } label: {
                 HStack(spacing: 8) {
                     Image(systemName: model.state.selectedTab == nil ? "magnifyingglass" : "globe").font(.system(size: 10))
-                    Text(model.state.selectedTab?.url.host ?? "Search or Enter URL…").font(.system(size: 12, weight: .medium)).lineLimit(1)
+                    Text((model.settings.state.showFullURL ? model.state.selectedTab?.url.absoluteString : model.state.selectedTab?.url.host) ?? "Search or Enter URL…").font(.system(size: 12, weight: .medium)).lineLimit(1)
                     Spacer(minLength: 0)
                     Image(systemName: "ellipsis").font(.system(size: 11))
                 }.padding(.horizontal, 11).frame(height: 35)

@@ -45,6 +45,8 @@ final class MiniWindows: NSObject, NSWindowDelegate {
         return mini
     }
 
+    func closeAll() { windows.values.forEach { $0.window.performClose(nil) } }
+
     func windowWillClose(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
               let entry = windows.removeValue(forKey: ObjectIdentifier(window)) else { return }
@@ -195,6 +197,13 @@ final class ExternalLinkHandler: NSObject {
     @objc private func handle(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
         guard let text = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
               let url = URL(string: text), ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { return }
-        MiniWindows.shared.open(url: url)
+        if let model = MiniWindows.shared.primaryModel, !model.settings.state.externalLinksOpenInMiniWindow {
+            let target = BrowserWindows.shared.activeModel ?? model
+            target.open(url)
+            BrowserWindows.shared.window(for: target)?.makeKeyAndOrderFront(nil)
+            NSApplication.shared.activate(ignoringOtherApps: true)
+        } else {
+            MiniWindows.shared.open(url: url)
+        }
     }
 }
