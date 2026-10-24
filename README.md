@@ -1,73 +1,143 @@
-# D'arce
+<p align="center">
+  <img src=".github/assets/banner.svg" alt="D'arce: a native macOS browser inspired by Arc" width="100%">
+</p>
 
-An open-source, native macOS browser inspired by Arc. Built with SwiftUI, AppKit and WebKit. Not affiliated with The Browser Company.
+<p align="center">
+  <a href="../../releases/latest"><img alt="Download for macOS" src="https://img.shields.io/badge/Download-macOS-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
+</p>
 
-> **Work in progress.** Expect missing features and rough edges. Don't use it as your only browser yet.
+<p align="center">
+  <img alt="Status: alpha" src="https://img.shields.io/badge/status-alpha-ff5c8a?style=flat-square">
+  <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-7c5cff?style=flat-square">
+  <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple%20Silicon-native-2ec5ff?style=flat-square">
+  <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-ff9f43?style=flat-square&logo=swift&logoColor=white">
+  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square">
+</p>
 
-## Install
+<p align="center">
+  <b>Arc is going away. The ideas don't have to.</b><br>
+  Spaces, a sidebar that cleans itself up, split view and a command bar for everything,<br>
+  rebuilt from scratch in SwiftUI and AppKit. Open source, no account, no telemetry.
+</p>
 
-Requires an Apple Silicon Mac running macOS 14 or later.
+> [!WARNING]
+> **D'arce is a work in progress.** Things are missing and some things will break. Try it, report bugs, send PRs, but keep your old browser around for now.
 
-1. Download the `.dmg` from [Releases](../../releases/latest).
-2. Open it and drag **D'arce** into Applications.
-3. The first time you launch it, macOS may say it can't verify the app. Open **System Settings → Privacy & Security** and click **Open Anyway**. Or run:
-   ```sh
-   xattr -dr com.apple.quarantine "/Applications/D'arce.app"
-   ```
+<!-- Hero screenshot goes here: docs/hero.png -->
 
-## Build from source
+## ✦ What's inside
 
-Requires Xcode with Swift 6. No package dependencies.
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>🗂 Sidebar &amp; Spaces</h3>
+      Favorites, pinned tabs that remember their home URL, nested folders, and a separate Space for each part of your life, each with its own colors and icon.
+    </td>
+    <td width="50%" valign="top">
+      <h3>🧹 Auto-archive</h3>
+      Today tabs you stop using archive themselves on a schedule you choose. Anything archived comes back with <kbd>⇧</kbd><kbd>⌘</kbd><kbd>T</kbd>.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <h3>⌘ Command bar</h3>
+      One box for URLs, search, open tabs, history, Spaces and actions. Press <kbd>⌘</kbd><kbd>T</kbd> and type.
+    </td>
+    <td valign="top">
+      <h3>◫ Split view &amp; Peek</h3>
+      Two to four tabs side by side, saved across launches. Links from pinned tabs open in a Peek, so the pin stays put.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <h3>🎨 Themes</h3>
+      One-, two- or three-color gradients per Space, rendered with Metal. Light and dark.
+    </td>
+    <td valign="top">
+      <h3>⚡ Boosts, Notes &amp; Easels</h3>
+      Restyle any site with your own CSS and JS, or click to hide parts of a page. Keep local notes and page captures.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <h3>👤 Profiles &amp; private windows</h3>
+      Separate cookies and logins per profile. Private windows keep nothing.
+    </td>
+    <td valign="top">
+      <h3>🪶 Native and light</h3>
+      Built on WebKit and SwiftUI. The download is about 2&nbsp;MB.
+    </td>
+  </tr>
+</table>
+
+## ⬇ Install
+
+> Requires an **Apple Silicon Mac** running **macOS 14** or later.
+
+1. Download the latest `.dmg` from **[Releases](../../releases/latest)**.
+2. Open it and drag **D'arce** into **Applications**.
+3. Launch it.
+
+<details>
+<summary><b>macOS says it can't verify the app?</b></summary>
+<br>
+
+D'arce isn't notarized by Apple yet. Open **System Settings → Privacy &amp; Security**, scroll down, and click **Open Anyway**. Or run:
 
 ```sh
-bash scripts/run.sh          # debug build, data kept in .local/
-bash scripts/package.sh      # release .dmg + .zip in dist/
+xattr -dr com.apple.quarantine "/Applications/D'arce.app"
 ```
+</details>
 
-## What works
+## ⌨ Shortcuts
 
-- **Sidebar:** Favorites, pinned tabs with saved home URLs, Today tabs, nested folders, Spaces, archive and restore, auto-archive of inactive tabs.
-- **Command bar:** URLs, search, open tabs, history, Spaces and actions.
-- **Split view:** 2–4 panes, horizontal or vertical, saved across launches. Peek opens external links from pinned tabs without losing the pin.
-- **Themes:** per-Space colors and icons, light/dark, Metal-rendered backgrounds.
-- **Browsing:** profiles with separate website data, private windows, history, downloads, bookmark import/export, find, zoom, print, clear browsing data.
-- **Extras:** Boosts (per-site CSS/JS and click-to-hide), local Notes and Easels.
-
-## Shortcuts
-
-| Keys | Action |
+| | |
 |---|---|
-| Cmd+T | Search / new tab |
-| Cmd+L | Edit current URL |
-| Cmd+S | Toggle sidebar |
-| Cmd+D | Pin / unpin tab |
-| Cmd+W | Archive tab (closes in private windows) |
-| Shift+Cmd+T | Reopen last archived tab |
-| Cmd+N / Shift+Cmd+N | New window / private window |
-| Ctrl+1…9 | Switch Space |
-| Cmd+Y / Cmd+J / Cmd+F | History / Downloads / Find |
+| <kbd>⌘</kbd> <kbd>T</kbd> | Command bar / new tab |
+| <kbd>⌘</kbd> <kbd>L</kbd> | Edit the current URL |
+| <kbd>⌘</kbd> <kbd>S</kbd> | Show or hide the sidebar |
+| <kbd>⌘</kbd> <kbd>D</kbd> | Pin or unpin the tab |
+| <kbd>⌘</kbd> <kbd>W</kbd> | Archive the tab |
+| <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>T</kbd> | Bring back the last archived tab |
+| <kbd>⌃</kbd> <kbd>1</kbd> … <kbd>9</kbd> | Jump to a Space |
+| <kbd>⌃</kbd> <kbd>Tab</kbd> | Next tab |
+| <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>C</kbd> | Copy the URL |
+| <kbd>⌘</kbd> <kbd>N</kbd> / <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>N</kbd> | New window / private window |
+| <kbd>⌘</kbd> <kbd>Y</kbd> · <kbd>⌘</kbd> <kbd>J</kbd> · <kbd>⌘</kbd> <kbd>F</kbd> | History · Downloads · Find |
 
-## Not done yet
+## 🧭 Roadmap
 
-- Chromium engine and Chrome extensions (it runs on WebKit, Safari's engine, today)
-- Sync between Macs
-- Password manager and passkey integration
-- Restoring windows and their positions on relaunch
-- Intel Macs
+- [x] Sidebar, Spaces, Favorites, pins, folders
+- [x] Auto-archive and restore
+- [x] Command bar
+- [x] Split view and Peek
+- [x] Space themes
+- [x] Boosts, Notes, Easels
+- [x] Profiles and private windows
+- [ ] Chromium engine and Chrome extensions
+- [ ] Sync between Macs
+- [ ] Passwords and passkeys
+- [ ] Restore windows on relaunch
+- [ ] Notarized builds
+- [ ] Intel Macs
 
-## Your data
+## 🔒 Your data stays on your Mac
 
-Settings and tabs are stored in `~/Library/Application Support/Darce`. Website data uses macOS WebKit's per-profile stores. Private windows write nothing to disk except files you explicitly save. No account, no telemetry.
+No account and no telemetry. Tabs and settings live in `~/Library/Application Support/Darce`. Website data uses WebKit's per-profile stores. Private windows write nothing to disk except files you choose to save.
 
-## Development
+## 🛠 Build from source
 
-```text
-Sources/BrowserCore/      Engine-independent models and stores
-Sources/BrowserPrototype/ SwiftUI/AppKit WebKit app and smoke runners
-Sources/BrowserTheme/     Palette and Metal theme renderer
-Tests/BrowserCoreTests/   Regression tests
-scripts/                  Build, package, launch and smoke tests
+Needs Xcode with Swift 6. There are no package dependencies.
+
+```sh
+git clone https://github.com/vinny380/darce.git && cd darce
+bash scripts/run.sh        # build and launch (data kept in .local/)
+bash scripts/package.sh    # release .dmg + .zip in dist/
 ```
+
+<details>
+<summary>Tests and project layout</summary>
+<br>
 
 ```sh
 swift test
@@ -75,6 +145,21 @@ bash scripts/smoke.sh
 bash scripts/network-smoke.sh
 ```
 
-## License
+```text
+Sources/BrowserCore/       Engine-independent models and stores
+Sources/BrowserPrototype/  The SwiftUI/AppKit app
+Sources/BrowserTheme/      Palette and Metal theme renderer
+Tests/                     Regression tests
+scripts/                   Build, package and smoke tests
+```
+</details>
 
-MIT
+## 🤝 Contributing
+
+Issues and pull requests are welcome. If Arc did something you can't live without, open an issue and say what it was.
+
+---
+
+<p align="center">
+  <sub>MIT licensed · Not affiliated with The Browser Company · Made by people who miss Arc</sub>
+</p>

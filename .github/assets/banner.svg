@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420">
+  <defs>
+    <filter id="blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="70"/></filter>
+    <linearGradient id="ink" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e9e4ff"/>
+    </linearGradient>
+    <clipPath id="card"><rect width="1280" height="420" rx="28"/></clipPath>
+  </defs>
+  <g clip-path="url(#card)">
+    <rect width="1280" height="420" fill="#0d0b1a"/>
+    <g filter="url(#blur)" opacity="0.95">
+      <circle cx="180" cy="80" r="220" fill="#7c5cff"/>
+      <circle cx="1120" cy="360" r="240" fill="#ff5c8a"/>
+      <circle cx="760" cy="-20" r="180" fill="#ff9f43"/>
+      <circle cx="420" cy="440" r="200" fill="#2ec5ff"/>
+    </g>
+    <rect width="1280" height="420" fill="#0d0b1a" opacity="0.25"/>
+    <!-- sidebar motif -->
+    <g transform="translate(96 118)" opacity="0.9">
+      <rect width="148" height="184" rx="18" fill="#ffffff" fill-opacity="0.10" stroke="#ffffff" stroke-opacity="0.25"/>
+      <rect x="16" y="18" width="52" height="34" rx="9" fill="#ffffff" fill-opacity="0.35"/>
+      <rect x="80" y="18" width="52" height="34" rx="9" fill="#ffffff" fill-opacity="0.18"/>
+      <rect x="16" y="70" width="116" height="22" rx="7" fill="#ffffff" fill-opacity="0.85"/>
+      <rect x="16" y="102" width="116" height="22" rx="7" fill="#ffffff" fill-opacity="0.22"/>
+      <rect x="16" y="134" width="84" height="22" rx="7" fill="#ffffff" fill-opacity="0.22"/>
+    </g>
+    <text x="300" y="232" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="128" font-weight="800" letter-spacing="-5" fill="url(#ink)">D’arce</text>
+    <text x="306" y="292" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="30" font-weight="500" fill="#ffffff" fill-opacity="0.78">A native macOS browser inspired by Arc. Open source.</text>
+  </g>
+</svg>
