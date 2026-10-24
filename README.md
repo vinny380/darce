@@ -91,19 +91,30 @@ xattr -dr com.apple.quarantine "/Applications/D'arce.app"
 
 ## ⌨ Shortcuts
 
-| | |
-|---|---|
-| <kbd>⌘</kbd> <kbd>T</kbd> | Command bar / new tab |
-| <kbd>⌘</kbd> <kbd>L</kbd> | Edit the current URL |
-| <kbd>⌘</kbd> <kbd>S</kbd> | Show or hide the sidebar |
-| <kbd>⌘</kbd> <kbd>D</kbd> | Pin or unpin the tab |
-| <kbd>⌘</kbd> <kbd>W</kbd> | Archive the tab |
-| <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>T</kbd> | Bring back the last archived tab |
-| <kbd>⌃</kbd> <kbd>1</kbd> … <kbd>9</kbd> | Jump to a Space |
-| <kbd>⌃</kbd> <kbd>Tab</kbd> | Next tab |
-| <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>C</kbd> | Copy the URL |
-| <kbd>⌘</kbd> <kbd>N</kbd> / <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>N</kbd> | New window / private window |
-| <kbd>⌘</kbd> <kbd>Y</kbd> · <kbd>⌘</kbd> <kbd>J</kbd> · <kbd>⌘</kbd> <kbd>F</kbd> | History · Downloads · Find |
+The same keys as Arc, so muscle memory carries over.
+
+| Tabs | | Spaces &amp; split view | |
+|---|---|---|---|
+| <kbd>⌘</kbd> <kbd>T</kbd> | Command bar / new tab | <kbd>⌃</kbd> <kbd>1</kbd> … <kbd>9</kbd> | Jump to a Space |
+| <kbd>⌘</kbd> <kbd>L</kbd> | Edit the URL | <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>←</kbd> <kbd>→</kbd> | Previous / next Space |
+| <kbd>⌃</kbd> <kbd>Tab</kbd> | Recent tab (hold <kbd>⌃</kbd> to go further back) | <kbd>⌃</kbd> <kbd>⇧</kbd> <kbd>=</kbd> | Add a split view pane |
+| <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>↑</kbd> <kbd>↓</kbd> | Previous / next tab | <kbd>⌃</kbd> <kbd>⇧</kbd> <kbd>-</kbd> | Close the split view pane |
+| <kbd>⌘</kbd> <kbd>1</kbd> … <kbd>9</kbd> | Go to tab 1–8 / last tab | <kbd>⌘</kbd> <kbd>S</kbd> | Show or hide the sidebar |
+| <kbd>⌘</kbd> <kbd>D</kbd> | Pin or unpin | <kbd>⌘</kbd> <kbd>N</kbd> / <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>N</kbd> | New window / private window |
+| <kbd>⌘</kbd> <kbd>W</kbd> | Archive the tab | <kbd>⌘</kbd> <kbd>Y</kbd> | History |
+| <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>T</kbd> | Reopen the last archived tab | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>J</kbd> | Downloads |
+| <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>K</kbd> | Clear all Today tabs | <kbd>⌘</kbd> <kbd>F</kbd> | Find in page |
+| <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>C</kbd> | Copy the URL | <kbd>⌘</kbd> <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd> | Zoom |
+| <kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>C</kbd> | Copy the URL as Markdown | <kbd>⌘</kbd> <kbd>[</kbd> <kbd>]</kbd> | Back / forward |
+
+## 👆 Trackpad gestures
+
+| Gesture | Where | What it does |
+|---|---|---|
+| Two-finger swipe | Sidebar | Slide to the next or previous Space, with its colors fading in as you go |
+| Two-finger swipe | Page | Back / forward |
+| Pinch | Page | Zoom |
+| Two-finger double-tap | Page | Smart zoom |
 
 ## 🧭 Roadmap
 
