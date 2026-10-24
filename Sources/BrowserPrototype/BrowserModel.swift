@@ -4,7 +4,7 @@ import Combine
 import Foundation
 import WebKit
 
-enum CommandMode { case newTab, location }
+enum CommandMode { case newTab, location, split }
 enum LibraryPanel: String, Identifiable { case profiles, history, downloads, appearance, boosts, settings, documents, browsingData; var id: String { rawValue } }
 
 @MainActor
@@ -39,6 +39,11 @@ final class BrowserModel: ObservableObject {
     private var workspaceObservation: AnyCancellable?
     private var pages: [UUID: BrowserPage] = [:]
     private var pageProfiles: [UUID: UUID] = [:]
+    /// Most recently selected first; in memory only, like Arc's recent-tab switcher.
+    private var recentTabIDs: [UUID] = []
+    private var recentSwitch: RecentTabSwitch?
+    private static weak var switchingModel: BrowserModel?
+    private static var controlReleaseMonitor: Any?
 
     func prepareBrowsingDataRemoval(_ profileID: UUID) async throws {
         let ids = pages.keys.filter { pageProfiles[$0] == profileID }
@@ -119,6 +124,39 @@ final class BrowserModel: ObservableObject {
             }
         }
         if previous.selectedProfileID != state.selectedProfileID { closePeek() }
+        if recentSwitch == nil, candidate.selectedTabID != previous.selectedTabID { noteRecent(candidate.selectedTabID) }
+    }
+
+    private func noteRecent(_ id: UUID?) {
+        guard let id else { return }
+        recentTabIDs.removeAll { $0 == id }
+        recentTabIDs.insert(id, at: 0)
+        if recentTabIDs.count > 50 { recentTabIDs.removeLast() }
+    }
+
+    /// Control+Tab walks recent tabs; while Control stays held, repeated presses go further back.
+    func cycleRecentTab(backwards: Bool) {
+        if recentSwitch == nil {
+            recentSwitch = RecentTabSwitch(recent: recentTabIDs, visible: state.visibleTabs.map(\.id), current: state.selectedTabID)
+        }
+        guard var walk = recentSwitch else { return }
+        let id = walk.step(backwards: backwards)
+        recentSwitch = walk
+        select(id)
+        guard NSEvent.modifierFlags.contains(.control) else { recentSwitch = nil; noteRecent(id); return }
+        Self.switchingModel = self
+        if Self.controlReleaseMonitor == nil {
+            Self.controlReleaseMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+                if !event.modifierFlags.contains(.control) { MainActor.assumeIsolated { BrowserModel.switchingModel?.endRecentTabSwitch() } }
+                return event
+            }
+        }
+    }
+
+    func endRecentTabSwitch() {
+        guard recentSwitch != nil else { return }
+        recentSwitch = nil
+        noteRecent(state.selectedTabID)
     }
 
     private func teardown(_ page: BrowserPage) {
@@ -228,6 +266,24 @@ final class BrowserModel: ObservableObject {
     func split(_ id: UUID) {
         guard id != state.selectedTabID, state.visibleTabs.contains(where: { $0.id == id }) else { return }
         stateUpdate { _ = $0.addToSplit(id) }
+    }
+    /// Opens a new page beside the current one; the new pane takes focus.
+    func openInSplit(_ url: URL) {
+        guard let anchor = state.selectedTabID else { open(url); return }
+        stateUpdate { state in
+            let id = state.openTab(url: url)
+            state.selectTab(anchor)
+            if state.addToSplit(id) { state.selectTab(id) }
+        }
+    }
+    func closeSelectedPane() {
+        guard let group = state.selectedSplitGroup, let id = state.selectedTabID else { return }
+        stateUpdate { $0.closePane(id, from: group.id) }
+    }
+    func cycleSpace(backwards: Bool) { stateUpdate { BrowserOrderedNavigation.cycleSpace(&$0, backwards: backwards) } }
+    /// Archives every Today tab in this Space; Favorites and pins stay.
+    func clearTodayTabs() {
+        stateUpdate { state in for tab in state.visibleTabs where tab.kind == .today { state.archiveTab(tab.id) } }
     }
     func separatePane(_ id: UUID, from groupID: UUID) {
         stateUpdate { state in
@@ -403,6 +459,8 @@ final class BrowserPage: NSObject, ObservableObject, WKNavigationDelegate, WKUID
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
+        webView.allowsMagnification = true
+        webView.isInspectable = true
         titleObservation = webView.observe(\.title, options: [.new]) { [weak self] _, change in
             let title = change.newValue ?? nil
             Task { @MainActor [weak self] in

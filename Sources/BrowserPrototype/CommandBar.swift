@@ -26,7 +26,8 @@ struct BrowserCommandBar: View {
         var results: [Suggestion] = []
         if !search.isEmpty, BrowserModel.destination(search) != nil {
             results.append(Suggestion(id: "navigate", title: search, detail: search.contains(".") ? "Go to website" : "Search \(model.settings.state.searchEngine.name)", icon: "magnifyingglass") {
-                model.submit(search, newTab: model.commandMode == .newTab)
+                if model.commandMode == .split, let url = model.destination(search) { model.openInSplit(url) }
+                else { model.submit(search, newTab: model.commandMode == .newTab) }
             })
         }
         let tabs = model.state.tabs.filter { tab in
@@ -34,7 +35,9 @@ struct BrowserCommandBar: View {
                 (search.isEmpty || tab.title.localizedCaseInsensitiveContains(search) || tab.url.absoluteString.localizedCaseInsensitiveContains(search))
         }
         for tab in tabs.prefix(6) {
-            results.append(Suggestion(id: tab.id.uuidString, title: tab.title, detail: "Switch to Tab", icon: "rectangle.on.rectangle") { model.select(tab.id) })
+            results.append(Suggestion(id: tab.id.uuidString, title: tab.title, detail: "Switch to Tab", icon: "rectangle.on.rectangle") {
+                if model.commandMode == .split { model.split(tab.id) } else { model.select(tab.id) }
+            })
         }
         if !search.isEmpty {
             let openURLs = Set(tabs.map(\.url))

@@ -59,6 +59,11 @@ struct BrowserApplicationCommands: Commands {
                 }.disabled(activeModel.state.selectedTab?.homeURL == nil)
                 Divider()
                 Button("Toggle Sidebar") { activeModel.sidebarVisible.toggle() }.keyboardShortcut("s")
+                Button("Add Split View") { activeModel.commandMode = .split }
+                    .keyboardShortcut("=", modifiers: [.control, .shift])
+                    .disabled(activeModel.state.selectedTab == nil || (activeModel.state.selectedSplitGroup?.tabIDs.count ?? 0) >= 4)
+                Button("Close Split View Pane") { activeModel.closeSelectedPane() }
+                    .keyboardShortcut("-", modifiers: [.control, .shift]).disabled(activeModel.state.selectedSplitGroup == nil)
                 Button("Separate Tab") {
                     if let group = activeModel.state.selectedSplitGroup, let id = activeModel.state.selectedTabID {
                         activeModel.separatePane(id, from: group.id)
@@ -68,7 +73,7 @@ struct BrowserApplicationCommands: Commands {
                 Divider()
                 Button("History") { activeModel.panel = .history }.keyboardShortcut("y")
                 Button("Clear Browsing Data…") { activeModel.panel = .browsingData }
-                Button("Downloads") { activeModel.panel = .downloads }.keyboardShortcut("j")
+                Button("Downloads") { activeModel.panel = .downloads }.keyboardShortcut("j", modifiers: [.command, .shift])
                 Button("Profiles") { activeModel.panel = .profiles }
                 Button("Notes & Easels") { activeModel.panel = .documents }
                 Button("Customize Space…") { activeModel.panel = .appearance }

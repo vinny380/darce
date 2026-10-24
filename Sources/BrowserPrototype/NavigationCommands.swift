@@ -22,6 +22,19 @@ struct BrowserNavigationCommands: Commands {
     @ObservedObject var model: BrowserModel
     @ObservedObject private var privateWindows = PrivateBrowserWindows.shared
 
+    private func cycleTab(backwards: Bool) {
+        if let session = privateWindows.activeSession { session.cycleTab(backwards: backwards); return }
+        model.stateUpdate { BrowserOrderedNavigation.cycleTab(&$0, backwards: backwards) }
+    }
+
+    private func copyURL(_ format: (URL, String) -> String) {
+        guard privateWindows.activeSession == nil, let tab = model.state.selectedTab else { return }
+        let page = model.page(for: tab.id)
+        let url = page?.webView.url ?? tab.url
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(format(url, page?.webView.title ?? tab.title), forType: .string)
+    }
+
     var body: some Commands {
         CommandMenu("Navigate") {
             if let session = privateWindows.activeSession {
@@ -36,32 +49,43 @@ struct BrowserNavigationCommands: Commands {
                     guard let id = model.state.selectedTabID else { return }
                     model.stateUpdate { _ = $0.duplicateTab(id) }
                 }.disabled(model.state.selectedTabID == nil)
-                Button("Copy Current URL") {
-                    guard privateWindows.activeSession == nil else { return }
-                    guard let tab = model.state.selectedTab else { return }
-                    let url = model.page(for: tab.id)?.webView.url ?? tab.url
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(url.absoluteString, forType: .string)
-                }.keyboardShortcut("c", modifiers: [.command, .shift])
-                    .disabled(model.state.selectedTabID == nil)
+                Button("Copy Current URL") { copyURL { url, _ in url.absoluteString } }
+                    .keyboardShortcut("c", modifiers: [.command, .shift]).disabled(model.state.selectedTabID == nil)
+                Button("Copy URL as Markdown") { copyURL { url, title in "[\(title)](\(url.absoluteString))" } }
+                    .keyboardShortcut("c", modifiers: [.command, .option, .shift]).disabled(model.state.selectedTabID == nil)
                 Divider()
-                Button("Next Visible Tab") {
-                    if let session = privateWindows.activeSession { session.cycleTab(backwards: false); return }
-                    model.stateUpdate { BrowserOrderedNavigation.cycleTab(&$0, backwards: false) }
-                }.keyboardShortcut(.tab, modifiers: [.control]).disabled(model.state.visibleTabs.isEmpty)
-                Button("Previous Visible Tab") {
-                    if let session = privateWindows.activeSession { session.cycleTab(backwards: true); return }
-                    model.stateUpdate { BrowserOrderedNavigation.cycleTab(&$0, backwards: true) }
-                }.keyboardShortcut(.tab, modifiers: [.control, .shift]).disabled(model.state.visibleTabs.isEmpty)
+                Button("Next Tab") { cycleTab(backwards: false) }
+                    .keyboardShortcut(.downArrow, modifiers: [.command, .option]).disabled(model.state.visibleTabs.isEmpty)
+                Button("Previous Tab") { cycleTab(backwards: true) }
+                    .keyboardShortcut(.upArrow, modifiers: [.command, .option]).disabled(model.state.visibleTabs.isEmpty)
+                Button("Cycle Tab Forward") { cycleTab(backwards: false) }
+                    .keyboardShortcut(.rightArrow, modifiers: [.command, .control]).disabled(model.state.visibleTabs.isEmpty)
+                Button("Cycle Tab Backward") { cycleTab(backwards: true) }
+                    .keyboardShortcut(.leftArrow, modifiers: [.command, .control]).disabled(model.state.visibleTabs.isEmpty)
+                Button("Switch to Recent Tab") {
+                    if let session = privateWindows.activeSession { session.cycleTab(backwards: false) } else { model.cycleRecentTab(backwards: false) }
+                }.keyboardShortcut(.tab, modifiers: [.control]).disabled(model.state.visibleTabs.count < 2)
+                Button("Switch to Previous Recent Tab") {
+                    if let session = privateWindows.activeSession { session.cycleTab(backwards: true) } else { model.cycleRecentTab(backwards: true) }
+                }.keyboardShortcut(.tab, modifiers: [.control, .shift]).disabled(model.state.visibleTabs.count < 2)
+                Menu("Go to Tab") {
+                    ForEach(1...9, id: \.self) { number in
+                        Button(number == 9 ? "Last Tab" : "Tab \(number)") {
+                            let tabs = model.state.visibleTabs
+                            guard privateWindows.activeSession == nil, !tabs.isEmpty else { return }
+                            if number == 9 { model.select(tabs[tabs.count - 1].id) }
+                            else if number <= tabs.count { model.select(tabs[number - 1].id) }
+                        }.keyboardShortcut(KeyEquivalent(Character(String(number))))
+                    }
+                }
+                Button("Clear Today Tabs") { if privateWindows.activeSession == nil { model.clearTodayTabs() } }
+                    .keyboardShortcut("k", modifiers: [.command, .shift])
+                    .disabled(!model.state.visibleTabs.contains { $0.kind == .today })
                 Divider()
-                Button("Next Space") {
-                    guard privateWindows.activeSession == nil else { return }
-                    model.stateUpdate { BrowserOrderedNavigation.cycleSpace(&$0, backwards: false) }
-                }.disabled(model.state.spaces.count < 2)
-                Button("Previous Space") {
-                    guard privateWindows.activeSession == nil else { return }
-                    model.stateUpdate { BrowserOrderedNavigation.cycleSpace(&$0, backwards: true) }
-                }.disabled(model.state.spaces.count < 2)
+                Button("Next Space") { if privateWindows.activeSession == nil { model.cycleSpace(backwards: false) } }
+                    .keyboardShortcut(.rightArrow, modifiers: [.command, .option]).disabled(model.state.spaces.count < 2)
+                Button("Previous Space") { if privateWindows.activeSession == nil { model.cycleSpace(backwards: true) } }
+                    .keyboardShortcut(.leftArrow, modifiers: [.command, .option]).disabled(model.state.spaces.count < 2)
             }
         }
     }
@@ -116,7 +140,7 @@ private struct BrowserPageNavigationButtons: View {
 }
 
 /// Model visible-tab order, not recency order. Archived and foreign-profile tabs stay excluded.
-private enum BrowserOrderedNavigation {
+enum BrowserOrderedNavigation {
     static func cycleTab(_ state: inout BrowserState, backwards: Bool) {
         let ids = state.visibleTabs.map(\.id)
         guard let id = next(ids, current: state.selectedTabID, backwards: backwards) else { return }
@@ -132,6 +156,25 @@ private enum BrowserOrderedNavigation {
         guard !ids.isEmpty else { return nil }
         guard let current, let index = ids.firstIndex(of: current) else { return backwards ? ids.last : ids.first }
         return ids[(index + (backwards ? ids.count - 1 : 1)) % ids.count]
+    }
+}
+
+/// Recent-tab order frozen at the first Control+Tab, so holding Control walks further back.
+struct RecentTabSwitch {
+    let order: [UUID]
+    private var index = 0
+
+    init?(recent: [UUID], visible: [UUID], current: UUID?) {
+        var order = recent.filter { visible.contains($0) && $0 != current }
+        if let current, visible.contains(current) { order.insert(current, at: 0) }
+        order += visible.filter { !order.contains($0) }
+        guard order.count > 1 else { return nil }
+        self.order = order
+    }
+
+    mutating func step(backwards: Bool) -> UUID {
+        index = (index + (backwards ? order.count - 1 : 1)) % order.count
+        return order[index]
     }
 }
 
@@ -176,5 +219,23 @@ func runNavigationCommandSmoke() -> [String: Bool] {
     var empty = BrowserState()
     BrowserOrderedNavigation.cycleTab(&empty, backwards: false)
     checks["ordered_tab_cycle_empty_is_noop"] = empty.selectedTabID == nil && empty.tabs.isEmpty
+    // Recent order: current first, then most recent, then never-visited tabs; archived ids drop out.
+    if var walk = RecentTabSwitch(recent: [pinned, archived, today], visible: [favorite, pinned, today], current: today) {
+        checks["recent_switch_goes_to_previous_tab"] = walk.step(backwards: false) == pinned
+        checks["recent_switch_held_control_walks_further"] = walk.step(backwards: false) == favorite
+        checks["recent_switch_wraps_to_current"] = walk.step(backwards: false) == today
+        checks["recent_switch_backwards_from_current"] = walk.step(backwards: true) == favorite
+    } else { checks["recent_switch_builds_order"] = false }
+    var swipe = SpaceSwipeTracker()
+    checks["swipe_vertical_scroll_stays_scroll"] = swipe.handle(phase: .began, fingerDX: 5, fingerDY: 30) == nil
+        && swipe.handle(phase: .changed, fingerDX: 70, fingerDY: 0) == nil
+        && swipe.handle(phase: .ended, fingerDX: 0, fingerDY: 0) == nil
+    checks["swipe_follows_fingers"] = swipe.handle(phase: .began, fingerDX: -30, fingerDY: 2) == .drag(-30)
+        && swipe.handle(phase: .changed, fingerDX: -40, fingerDY: 2) == .drag(-70)
+    checks["swipe_end_reports_travel_and_velocity"] = swipe.handle(phase: .ended, fingerDX: 0, fingerDY: 0) == .end(-70, velocity: -40)
+    checks["swipe_ignores_events_after_end"] = swipe.handle(phase: .ended, fingerDX: 0, fingerDY: 0) == nil
+    checks["swipe_cancel_reports_no_travel"] = swipe.handle(phase: .began, fingerDX: 80, fingerDY: 0) == .drag(80)
+        && swipe.handle(phase: .cancelled, fingerDX: 0, fingerDY: 0) == .end(0, velocity: 80)
+    checks["recent_switch_needs_two_tabs"] = RecentTabSwitch(recent: [], visible: [today], current: today) == nil
     return checks
 }

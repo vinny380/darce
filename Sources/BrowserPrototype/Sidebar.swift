@@ -8,6 +8,8 @@ struct BrowserSidebar: View {
     @Binding var showArchive: Bool
     @Binding var showNewSpace: Bool
     @Binding var showNewFolder: Bool
+    var spaceSlide: CGFloat = 0
+    var spaceSlideProgress: CGFloat = 0
     @Environment(\.colorScheme) private var scheme
     private enum RenameTarget { case folder(UUID), tab(UUID), space(UUID) }
     private enum RemovalTarget { case folder(UUID), space(UUID, destination: UUID) }
@@ -67,6 +69,8 @@ struct BrowserSidebar: View {
                     ForEach(model.state.visibleTabs.filter { $0.kind == .today }) { tab in tabRow(tab) }
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.scrollIndicators(.hidden)
+            .offset(x: spaceSlide)
+            .opacity(1 - 0.75 * spaceSlideProgress)
             HStack(spacing: 4) {
                 Button { showArchive = true } label: { Image(systemName: "archivebox").frame(width: 30, height: 30) }
                     .help("Archive").accessibilityLabel("Archive")

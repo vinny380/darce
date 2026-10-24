@@ -69,6 +69,12 @@ struct BrowserWindow: View {
     @State private var showNewSpace = false
     @State private var showNewFolder = false
     @State private var name = ""
+    /// Horizontal travel of the Space's sidebar content; drives the slide and the theme cross-fade.
+    @State private var spaceSlide: CGFloat = 0
+    /// The other Space's theme, drawn over the current one at `slideProgress` opacity.
+    @State private var overlaySpace: UUID?
+    @State private var swipeSwitching = false
+    @State private var transitionID = 0
 
     init(model: BrowserModel) {
         self.model = model
@@ -76,13 +82,74 @@ struct BrowserWindow: View {
     }
 
     private var sidebarWidth: CGFloat { previewSidebarWidth ?? CGFloat(appearance.state.sidebarWidth) }
+    private var slideProgress: CGFloat { min(1, abs(spaceSlide) / max(sidebarWidth, 1)) }
+    private var themeLayers: [UUID] {
+        let current = model.state.selectedSpaceID
+        return [current] + (overlaySpace.map { $0 == current ? [] : [$0] } ?? [])
+    }
+
+    private func neighborSpace(next: Bool) -> UUID? {
+        let ids = model.state.spaces.map(\.id)
+        guard let index = ids.firstIndex(of: model.state.selectedSpaceID) else { return nil }
+        let target = index + (next ? 1 : -1)
+        return ids.indices.contains(target) ? ids[target] : nil
+    }
+
+    /// Settles the slide at 0, then drops the overlay unless a newer transition has started.
+    private func settle(_ animation: Animation) {
+        transitionID += 1
+        let id = transitionID
+        withAnimation(animation) { spaceSlide = 0 } completion: { if id == transitionID { overlaySpace = nil } }
+    }
+
+    private func handleSpaceSwipe(_ update: SpaceSwipeTracker.Update) {
+        switch update {
+        case .drag(let dx):
+            guard !reduceMotion else { return }
+            transitionID += 1
+            let target = neighborSpace(next: dx < 0)
+            overlaySpace = target
+            spaceSlide = target == nil ? dx * 0.2 : max(-sidebarWidth, min(sidebarWidth, dx))  // rubber band at the ends
+        case .end(let dx, let velocity):
+            let next = dx < 0
+            let flick = abs(dx) > 12 && abs(velocity) > 6 && (velocity < 0) == next
+            guard abs(dx) > 50 || flick, let target = neighborSpace(next: next) else {
+                settle(.spring(duration: 0.35, bounce: 0.25))
+                return
+            }
+            guard !reduceMotion else { model.selectSpace(target); return }
+            transitionID += 1
+            let id = transitionID
+            let width = sidebarWidth
+            withAnimation(.easeOut(duration: 0.12)) { spaceSlide = next ? -width : width } completion: {
+                guard id == transitionID else { return }
+                swipeSwitching = true
+                model.selectSpace(target)
+                overlaySpace = nil
+                withTransaction(Transaction(animation: nil)) { spaceSlide = next ? width * 0.45 : -width * 0.45 }
+                settle(.spring(duration: 0.4, bounce: 0.12))
+            }
+        }
+    }
+
+    /// Keyboard and click switches slide the new Space in while the old theme fades out.
+    private func animateSpaceChange(from old: UUID, to new: UUID) {
+        if swipeSwitching { swipeSwitching = false; return }
+        let ids = model.state.spaces.map(\.id)
+        guard !reduceMotion, let from = ids.firstIndex(of: old), let to = ids.firstIndex(of: new) else { return }
+        overlaySpace = old
+        withTransaction(Transaction(animation: nil)) { spaceSlide = to > from ? sidebarWidth * 0.6 : -sidebarWidth * 0.6 }
+        settle(.spring(duration: 0.42, bounce: 0.1))
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
             HStack(spacing: 0) {
                 if model.sidebarVisible {
-                    BrowserSidebar(model: model, appearance: appearance, showArchive: $showArchive, showNewSpace: $showNewSpace, showNewFolder: $showNewFolder)
+                    BrowserSidebar(model: model, appearance: appearance, showArchive: $showArchive, showNewSpace: $showNewSpace, showNewFolder: $showNewFolder,
+                                   spaceSlide: spaceSlide, spaceSlideProgress: slideProgress)
                         .frame(width: sidebarWidth)
+                        .background(SpaceSwipeMonitor(onUpdate: handleSpaceSwipe))
                     Color.clear.frame(width: 5).contentShape(Rectangle())
                         .onHover { if $0 { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() } }
                         .gesture(DragGesture().onChanged { value in
@@ -162,7 +229,15 @@ struct BrowserWindow: View {
             }
             if model.commandMode != nil { BrowserCommandBar(model: model).id(model.commandMode == .location ? "location" : "new-tab") }
         }
-        .background(appearance.background(forSpace: model.state.selectedSpaceID, scheme: scheme))
+        .background {
+            ZStack {
+                ForEach(themeLayers, id: \.self) { id in
+                    appearance.background(forSpace: id, scheme: scheme)
+                        .opacity(id == model.state.selectedSpaceID ? 1 : Double(slideProgress))
+                }
+            }
+        }
+        .onChange(of: model.state.selectedSpaceID) { old, new in animateSpaceChange(from: old, to: new) }
         .preferredColorScheme(appearance.preferredColorScheme)
         .ignoresSafeArea(.container, edges: .top)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: model.sidebarVisible)
