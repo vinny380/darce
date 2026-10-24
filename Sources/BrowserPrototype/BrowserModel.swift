@@ -19,6 +19,9 @@ final class BrowserModel: ObservableObject {
     @Published var panel: LibraryPanel?
     @Published var showFind = false
     @Published var siteControlsVisible = false
+    /// Arc's Boost editor panel for the selected site.
+    @Published var boostPanelOpen = false
+    @Published var boostPanelZapping = false
     var history: HistoryStore? { workspace.history }
     var secondaryTabID: UUID? { state.selectedSplitGroup?.tabIDs.first { $0 != state.selectedTabID } }
     @Published private(set) var peekPage: BrowserPage?
@@ -442,18 +445,23 @@ final class BrowserModel: ObservableObject {
         peekPage?.applyBoosts(controller: boosts, profileID: state.selectedProfileID)
     }
 
-    func pickBoostElement() {
+    /// Zap: click an element on the page to hide it. The Boost panel passes `zapped` to add it to the site's
+    /// Boost; the menu command without it saves the zap to that Boost too.
+    func pickBoostElement(_ zapped: ((String) -> Void)? = nil) {
         guard let id = state.selectedTabID, let page = page(for: id),
               let url = page.webView.url, ["http", "https"].contains(url.scheme ?? ""),
               let host = url.host?.lowercased() else { return }
         let profile = state.selectedProfileID
         page.beginElementPicker { [weak self, weak page] selector in
-            guard let self, let selector, self.state.profileID(forTab: id) == profile,
+            guard let self else { return }
+            self.boostPanelZapping = false
+            guard let selector, self.state.profileID(forTab: id) == profile,
                   page?.webView.url?.host?.lowercased() == host else { return }
-            if !self.boosts.save(BrowserBoost(profileID: profile, host: host,
-                name: "Hidden Element", hiddenSelectors: [selector])) {
-                self.errorMessage = self.boosts.errorMessage
-            }
+            if let zapped { zapped(selector); return }
+            var boost = self.boosts.boosts.first { $0.profileID == profile && $0.host == host }
+                ?? BrowserBoost(profileID: profile, host: host, name: "My Boost")
+            boost.hiddenSelectors.append(selector)
+            if !self.boosts.save(boost) { self.errorMessage = self.boosts.errorMessage }
         }
     }
 

@@ -51,7 +51,8 @@ final class BoostController: ObservableObject {
 
     func script(profileID: UUID) throws -> String {
         let payload: [[String: Any]] = boosts.filter { globallyEnabled && $0.profileID == profileID && $0.enabled }.map {
-            ["id": $0.id.uuidString, "host": $0.host, "css": $0.css,
+            ["id": $0.id.uuidString, "host": $0.host, "css": $0.css + "\n" + BoostStyle.css(for: $0),
+             "matrix": BoostStyle.colorMatrix(for: $0).map { $0.map { String(format: "%.4f", $0) }.joined(separator: " ") } ?? "",
              "javascript": $0.javascript ?? "", "selectors": $0.hiddenSelectors,
              "scriptVersion": SHA256.hash(data: Data(($0.javascript ?? "").utf8)).map { String(format: "%02x", $0) }.joined()]
         }
@@ -62,6 +63,7 @@ final class BoostController: ObservableObject {
           const boosts = \(json);
           const owned = 'data-browser-prototype-boost';
           document.querySelectorAll('style[' + owned + ']').forEach(node => node.remove());
+          document.querySelectorAll('svg[data-darce-boost-colors]').forEach(node => node.remove());
           if (!['http:', 'https:'].includes(location.protocol)) return;
           const executed = window.__browserPrototypeBoostExecutions ||= new Set();
           for (const boost of boosts) {
@@ -75,6 +77,22 @@ final class BoostController: ObservableObject {
             }
             style.textContent = boost.css + hiding;
             (document.head || document.documentElement).appendChild(style);
+            if (boost.matrix) {
+              // Arc recolors with a native 4×5 color matrix; WebKit gets the same through an SVG filter.
+              const ns = 'http://www.w3.org/2000/svg';
+              const svg = document.createElementNS(ns, 'svg');
+              svg.setAttribute('data-darce-boost-colors', boost.id);
+              svg.setAttribute('style', 'position:absolute;width:0;height:0;pointer-events:none');
+              const filter = document.createElementNS(ns, 'filter');
+              filter.setAttribute('id', '\(BoostStyle.filterID)');
+              filter.setAttribute('color-interpolation-filters', 'sRGB');
+              const matrix = document.createElementNS(ns, 'feColorMatrix');
+              matrix.setAttribute('type', 'matrix');
+              matrix.setAttribute('values', boost.matrix);
+              filter.appendChild(matrix);
+              svg.appendChild(filter);
+              document.documentElement.appendChild(svg);
+            }
             const execution = boost.id + ':' + boost.scriptVersion;
             if (boost.javascript && !executed.has(execution)) {
               executed.add(execution);

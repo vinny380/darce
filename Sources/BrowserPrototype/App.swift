@@ -254,6 +254,14 @@ struct BrowserWindow: View {
                 .padding(.horizontal, model.sidebarVisible ? 90 : 50).padding(.vertical, 55)
                 .onExitCommand { model.closePeek() }
             }
+            if model.boostPanelOpen, let host = model.state.selectedTab?.url.host?.lowercased() {
+                // Arc docks the Boost editor at the right of the page.
+                BoostPanel(model: model, boosts: model.boosts, host: host, profileID: model.state.selectedProfileID)
+                    .id(host)
+                    .padding(.trailing, 22)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
             if model.commandMode != nil { BrowserCommandBar(model: model).id(model.commandMode == .location ? "location" : "new-tab") }
         }
         .background {
@@ -268,6 +276,7 @@ struct BrowserWindow: View {
         .preferredColorScheme(appearance.preferredColorScheme)
         .ignoresSafeArea(.container, edges: .top)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: model.sidebarVisible)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: model.boostPanelOpen)
         .sheet(isPresented: $showArchive) { archiveSheet }
         .sheet(item: $model.panel) { panel in
             switch panel {

@@ -5,7 +5,7 @@ import WebKit
 @MainActor
 func runBoostSmoke(page: BrowserPage, controller: BoostController, profileID: UUID) async -> [String: Bool] {
     // Uses a synthetic navigation so actual URL host checks run, without a network request.
-    page.webView.loadSimulatedRequest(URLRequest(url: URL(string: "https://boost-fixture.invalid/")!), responseHTML: "<title>Boost Fixture</title><main id='boost-fixture'>Text</main><aside id='boost-hidden'>Advertisement</aside>")
+    page.webView.loadSimulatedRequest(URLRequest(url: URL(string: "https://boost-fixture.invalid/")!), responseHTML: "<title>Boost Fixture</title><main id='boost-fixture'>Text</main><aside id='boost-hidden'>Advertisement</aside><i id='boost-icon' style='font-family: FixtureIcons'>star</i>")
     for _ in 0..<100 {
         if page.webView.title == "Boost Fixture", !page.webView.isLoading { break }
         try? await Task.sleep(for: .milliseconds(50))
@@ -35,6 +35,27 @@ func runBoostSmoke(page: BrowserPage, controller: BoostController, profileID: UU
     let wrongProfile = BrowserBoost(profileID: UUID(), host: "boost-fixture.invalid", name: "Wrong Profile", css: "#boost-fixture {color:rgb(17,34,51)!important;}")
     _ = controller.save(wrongHost); _ = controller.save(wrongProfile); _ = await apply()
     checks["boost_exact_host_and_profile_guard"] = await js("getComputedStyle(document.querySelector('#boost-fixture')).color") != "rgb(17, 34, 51)"
+    // Arc's editor controls: font (sparing icon fonts), case, size, colors and zaps all reach the page.
+    var styled = BrowserBoost(profileID: profileID, host: "boost-fixture.invalid", name: "My Boost", hiddenSelectors: ["#boost-hidden"])
+    styled.font = "Courier"
+    styled.textCase = .uppercase
+    styled.textSize = .large
+    styled.colors = BoostColors(hue: 120, saturation: 0.8, invertLightness: true)
+    checks["boost_editor_save"] = controller.save(styled)
+    _ = await apply()
+    checks["boost_editor_font_applies"] = await js("getComputedStyle(document.querySelector('#boost-fixture')).fontFamily")?.contains("Courier") == true
+    // Icon fonts set their own family; Arc's rule must not replace it (icons would turn into words).
+    checks["boost_editor_font_spares_icons"] = await js("getComputedStyle(document.querySelector('#boost-icon')).fontFamily")?.contains("FixtureIcons") == true
+    checks["boost_editor_case_applies"] = await js("getComputedStyle(document.querySelector('#boost-fixture')).textTransform") == "uppercase"
+    checks["boost_editor_size_applies"] = await js("String(getComputedStyle(document.documentElement).zoom)") == "1.25"
+    let filter = await js("getComputedStyle(document.documentElement).filter")
+    let matrix = await js("String(!!document.querySelector('svg[data-darce-boost-colors] feColorMatrix'))")
+    checks["boost_editor_colors_apply"] = filter?.contains("url") == true && matrix == "true"
+    checks["boost_editor_zap_applies"] = await js("getComputedStyle(document.querySelector('#boost-hidden')).display") == "none"
+    styled.colors = nil
+    _ = controller.save(styled); _ = await apply()
+    checks["boost_editor_color_reset_removes_filter"] = await js("String(!!document.querySelector('svg[data-darce-boost-colors]'))") == "false"
+    _ = controller.remove(id: styled.id, profileID: profileID)
     _ = controller.remove(id: boost.id, profileID: profileID)
     _ = controller.remove(id: wrongHost.id, profileID: profileID)
     _ = controller.remove(id: wrongProfile.id, profileID: wrongProfile.profileID)

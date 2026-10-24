@@ -88,7 +88,7 @@ struct SiteControls: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 if let url { ShareLink(item: url) { tile("square.and.arrow.up") }.buttonStyle(.plain).help("Share") }
-                Button { close(); model.panel = .boosts } label: { tile("wand.and.sparkles") }.buttonStyle(.plain).help("Boost this site")
+                Button { close(); model.boostPanelOpen = true } label: { tile("wand.and.sparkles") }.buttonStyle(.plain).help("Boost this site")
                 Button { capture() } label: { tile(captured ? "checkmark" : "camera") }.buttonStyle(.plain).help("Capture page to clipboard")
                 Button { close(); model.showFind = true } label: { tile("text.magnifyingglass") }.buttonStyle(.plain).help("Find on page (⌘F)")
             }

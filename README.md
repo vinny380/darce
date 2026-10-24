@@ -55,7 +55,7 @@
     </td>
     <td valign="top">
       <h3>⚡ Boosts, Notes &amp; Easels</h3>
-      Restyle any site with your own CSS and JS, or click to hide parts of a page. Keep local notes and page captures.
+      Arc's Boost editor: drag the color pad to retint any site, invert its lightness, pick one of 20 fonts, change text size and case, Zap away anything you click, or write your own CSS and JS. Plus local notes and page captures.
     </td>
   </tr>
   <tr>

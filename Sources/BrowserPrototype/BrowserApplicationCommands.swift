@@ -93,7 +93,7 @@ struct BrowserApplicationCommands: Commands {
                 Button("Profiles") { activeModel.panel = .profiles }
                 Button("Notes & Easels") { activeModel.panel = .documents }
                 Button("Customize Space…") { activeModel.panel = .appearance }
-                Button("Boosts…") { activeModel.panel = .boosts }.disabled(activeModel.state.selectedTab?.url.host == nil)
+                Button("Edit Boost") { activeModel.boostPanelOpen = true }.disabled(activeModel.state.selectedTab?.url.host == nil)
                 Button("Hide Element with Boost") { activeModel.pickBoostElement() }.disabled(activeModel.state.selectedTab?.url.host == nil)
                 }.disabled(privateWindows.isPrivateWindowActive)
                 Divider()

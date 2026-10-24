@@ -23,7 +23,7 @@ struct CreatePanel: View {
             [Item(id: "space", title: "New Space", symbol: "rectangle.stack.badge.plus", action: newSpace),
              Item(id: "folder", title: "New Folder", symbol: "folder", action: newFolder)],
             [Item(id: "easel", title: "New Easel", symbol: "scribble.variable") { model.panel = .documents },
-             Item(id: "boost", title: "New Boost", symbol: "wand.and.sparkles", enabled: hasSite) { model.panel = .boosts }],
+             Item(id: "boost", title: "New Boost", symbol: "wand.and.sparkles", enabled: hasSite) { model.boostPanelOpen = true }],
             [Item(id: "split", title: "New Split", symbol: "rectangle.split.2x1", keys: "⌃⇧=", enabled: model.state.selectedTab != nil) { model.commandMode = .split },
              Item(id: "tab", title: "New Tab", symbol: "plus.square", keys: "⌘T") { model.commandMode = .newTab }],
         ]
