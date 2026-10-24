@@ -73,6 +73,8 @@ func runSmoke(model: BrowserModel, output: URL) async {
         for (name, passed) in runMiniLauncherSmoke(model: model).sorted(by: { $0.key < $1.key }) { try check(name, passed) }
         for (name, passed) in runDeveloperModeSmoke(model: model).sorted(by: { $0.key < $1.key }) { try check(name, passed) }
         for (name, passed) in runDialogSmoke(model: model).sorted(by: { $0.key < $1.key }) { try check(name, passed) }
+        for (name, passed) in runClosePinnedSmoke(model: model).sorted(by: { $0.key < $1.key }) { try check(name, passed) }
+        for (name, passed) in runShortcutAliasSmoke().sorted(by: { $0.key < $1.key }) { try check(name, passed) }
         try check("reject javascript URL", BrowserModel.destination("javascript:alert(1)") == nil)
         try check("reject file URL", BrowserModel.destination("file:///etc/hosts") == nil)
         let query = BrowserModel.destination("swift & spaces")

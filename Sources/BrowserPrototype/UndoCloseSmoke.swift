@@ -46,3 +46,21 @@ func runDialogSmoke(model: BrowserModel) -> [String: Bool] {
     checks["quit_confirmation_off_in_smoke_runs"] = !QuitConfirmation.enabled
     return checks
 }
+
+/// ⌘W on a pinned tab or Favorite, like Arc: the page closes, the pin stays in the sidebar, and selection moves on.
+@MainActor
+func runClosePinnedSmoke(model: BrowserModel) -> [String: Bool] {
+    model.open(URL(string: "https://close-other.invalid/")!)
+    guard let other = model.state.selectedTabID else { return ["close_pinned_has_tab": false] }
+    model.open(URL(string: "https://close-pinned.invalid/")!)
+    guard let pinned = model.state.selectedTabID else { return ["close_pinned_has_tab": false] }
+    model.pin(pinned, kind: .pinned)
+    _ = model.page(for: pinned)
+    model.closeCurrentTab()
+    var checks = ["close_pinned_keeps_pin": model.state.tabs.first { $0.id == pinned }?.kind == .pinned]
+    checks["close_pinned_unloads_page"] = model.loadedPage(pinned) == nil
+    checks["close_pinned_selects_previous_tab"] = model.state.selectedTabID == other
+    model.closeCurrentTab()
+    checks["close_today_still_archives"] = model.state.tabs.first { $0.id == other }?.kind == .archived
+    return checks
+}

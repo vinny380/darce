@@ -34,6 +34,7 @@ struct BrowserPrototypeApp: App {
         smokeOutput = value("--smoke-output").map { URL(fileURLWithPath: $0) }
         if !isSmoke { ExternalLinkHandler.shared.install() }
         QuitConfirmation.enabled = !isSmoke
+        ShortcutAliases.install()
     }
 
     var body: some Scene {

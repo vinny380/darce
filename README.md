@@ -114,7 +114,7 @@ The same keys as Arc, so muscle memory carries over.
 | <kbd>⌘</kbd> <kbd>1</kbd> … <kbd>9</kbd> | Go to tab 1–8 / last tab | <kbd>⌘</kbd> <kbd>S</kbd> | Show or hide the sidebar |
 | <kbd>⌘</kbd> <kbd>D</kbd> | Pin or unpin | <kbd>⌘</kbd> <kbd>N</kbd> / <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>N</kbd> | New window / private window |
 | <kbd>⌘</kbd> <kbd>O</kbd> | Mini window → open in D'arce | <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>N</kbd> | New mini window |
-| <kbd>⌘</kbd> <kbd>W</kbd> · <kbd>⌘</kbd> <kbd>Z</kbd> | Archive the tab · bring it back | <kbd>⌘</kbd> <kbd>Y</kbd> | History |
+| <kbd>⌘</kbd> <kbd>W</kbd> · <kbd>⌘</kbd> <kbd>Z</kbd> | Close the tab (pins stay in the sidebar) · bring it back | <kbd>⌘</kbd> <kbd>Y</kbd> | History |
 | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>T</kbd> | Reopen the last archived tab | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>J</kbd> | Downloads |
 | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>K</kbd> | Clear all Today tabs | <kbd>⌘</kbd> <kbd>F</kbd> | Find in page |
 | <kbd>⇧</kbd> <kbd>⌘</kbd> <kbd>C</kbd> | Copy the URL | <kbd>⌘</kbd> <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd> | Zoom |

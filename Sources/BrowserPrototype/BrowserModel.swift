@@ -267,6 +267,17 @@ final class BrowserModel: ObservableObject {
     func move(_ id: UUID, to space: UUID) { stateUpdate { $0.moveTab(id, to: space) } }
     func archive(_ id: UUID) { closeWithUndo([id], name: "Close Tab") { $0.archiveTab(id) } }
 
+    /// ⌘W, like Arc: a Today tab is archived (⌘Z brings it back); a pinned tab or Favorite closes its page but
+    /// stays in the sidebar, and selection moves to the tab used before it.
+    func closeCurrentTab() {
+        guard let tab = state.selectedTab else { return }
+        guard tab.kind == .pinned || tab.kind == .favorite else { archive(tab.id); return }
+        if let page = pages.removeValue(forKey: tab.id) { teardown(page); pageProfiles.removeValue(forKey: tab.id) }
+        let visible = Set(state.visibleTabs.map(\.id))
+        let next = recentTabIDs.first { $0 != tab.id && visible.contains($0) }
+        stateUpdate { state in if let next { state.selectTab(next) } else { state.clearSelection() } }
+    }
+
     /// Closes tabs so ⌘Z (Edit ▸ Undo) puts them back exactly where they were, like Arc. Uses the window's undo
     /// history, so ⌘Z in a text field still undoes typing first.
     private func closeWithUndo(_ ids: [UUID], name: String, _ change: (inout BrowserState) -> Void) {

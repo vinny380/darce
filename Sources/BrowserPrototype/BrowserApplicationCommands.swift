@@ -50,11 +50,12 @@ struct BrowserApplicationCommands: Commands {
                 Button("Save as PDF…") { activePage?.savePDF() }.disabled(activePage == nil)
             }
             CommandGroup(replacing: .saveItem) {
-                Button(privateWindows.isPrivateWindowActive ? "Close Private Tab" : "Archive Current Tab") {
+                Button(privateWindows.isPrivateWindowActive ? "Close Private Tab" : "Close Tab") {
                     if let mini = MiniWindows.shared.active { mini.onClose?() }
                     else if let session = privateWindows.activeSession { session.closeSelectedTab() }
-                    else if let id = activeModel.state.selectedTabID { activeModel.archive(id) }
-                }.keyboardShortcut("w").disabled(MiniWindows.shared.active == nil && (privateWindows.isPrivateWindowActive ? privateWindows.activeSession?.selectedTabID == nil : activeModel.state.selectedTab?.kind != .today))
+                    else if activeModel.state.selectedTab != nil { activeModel.closeCurrentTab() }
+                    else { NSApplication.shared.keyWindow?.performClose(nil) }  // nothing open: ⌘W closes the window
+                }.keyboardShortcut("w")
                 Button("Close Browser Window") { NSApplication.shared.keyWindow?.performClose(nil) }.keyboardShortcut("w", modifiers: [.command, .shift])
             }
             CommandGroup(after: .toolbar) {

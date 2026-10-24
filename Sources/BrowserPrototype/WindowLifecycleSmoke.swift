@@ -38,7 +38,7 @@ func runWindowLifecycleSmoke(primary: BrowserModel, output: URL) async {
                           "privateManagerActive": PrivateBrowserWindows.shared.isPrivateWindowActive,
                           "privateTabs": PrivateBrowserWindows.shared.activeSession?.tabs.count ?? 0,
                           "relevantCommands": menuItems(NSApplication.shared.mainMenu).filter {
-                              ["Archive Current Tab", "Close Private Tab", "Import Bookmarks…", "Export Bookmarks…"].contains($0.title)
+                              ["Close Tab", "Close Private Tab", "Import Bookmarks…", "Export Bookmarks…"].contains($0.title)
                           }.map { ["title": $0.title, "enabled": $0.isEnabled, "key": $0.keyEquivalent] }])
     }
 
@@ -120,7 +120,7 @@ func runWindowLifecycleSmoke(primary: BrowserModel, output: URL) async {
         snapshot("private-before-shortcut")
         try check("private_manager_tracks_key_window", privateReady)
         let commands = menuItems(NSApplication.shared.mainMenu)
-        try check("private_menu_uses_enabled_close_private_tab", commands.contains { $0.title == "Close Private Tab" && $0.isEnabled } && !commands.contains { $0.title == "Archive Current Tab" })
+        try check("private_menu_uses_enabled_close_private_tab", commands.contains { $0.title == "Close Private Tab" && $0.isEnabled } && !commands.contains { $0.title == "Close Tab" })
         try check("private_menu_disables_persistent_bookmark_actions", commands.contains { $0.title == "Import Bookmarks…" && !$0.isEnabled } && commands.contains { $0.title == "Export Bookmarks…" && !$0.isEnabled })
         let initialCount = privateSession.tabs.count
         if let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
@@ -139,7 +139,7 @@ func runWindowLifecycleSmoke(primary: BrowserModel, output: URL) async {
         snapshot("normal-after-private-close")
         let normalMenuRestored = try await waitUntil {
             updateMenus(NSApplication.shared.mainMenu)
-            return privateWindowClosed && manager.activeModel === primary && !PrivateBrowserWindows.shared.isPrivateWindowActive && menuItems(NSApplication.shared.mainMenu).contains { $0.title == "Archive Current Tab" }
+            return privateWindowClosed && manager.activeModel === primary && !PrivateBrowserWindows.shared.isPrivateWindowActive && menuItems(NSApplication.shared.mainMenu).contains { $0.title == "Close Tab" }
         }
         snapshot("normal-menu-settled")
         try check("closing_private_window_restores_normal_menu_context", normalMenuRestored)

@@ -219,7 +219,7 @@ private struct ShortcutSettings: View {
     @State private var query = ""
 
     static let shortcuts: [(name: String, keys: String)] = [
-        ("Add Split View", "⌃⇧="), ("Archive Tab", "⌘W"), ("Back", "⌘["), ("Clear Today Tabs", "⇧⌘K"),
+        ("Add Split View", "⌃⇧="), ("Close Tab", "⌘W"), ("Back", "⌘["), ("Clear Today Tabs", "⇧⌘K"),
         ("Close Split View Pane", "⌃⇧-"), ("Close Window", "⇧⌘W"), ("Copy URL", "⇧⌘C"), ("Copy URL as Markdown", "⌥⇧⌘C"),
         ("Cycle Tab Backward", "⌃⌘←"), ("Cycle Tab Forward", "⌃⌘→"), ("Downloads", "⇧⌘J"), ("Find in Page", "⌘F"),
         ("Forward", "⌘]"), ("Go to Last Tab", "⌘9"), ("Go to Tab 1–8", "⌘1 … ⌘8"), ("History", "⌘Y"),
