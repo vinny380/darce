@@ -295,6 +295,8 @@ struct BrowserWindow: View {
             case .appearance:
                 AppearanceView(controller: appearance, spaceID: model.state.selectedSpaceID,
                                spaceName: model.state.spaces.first { $0.id == model.state.selectedSpaceID }?.name ?? "Space")
+            case .spaces:
+                ManageSpacesView(model: model)
             case .boosts:
                 if let url = model.state.selectedTab?.url, url.host != nil {
                     BoostEditor(controller: model.boosts, profileID: model.state.selectedProfileID, url: url)
@@ -306,10 +308,23 @@ struct BrowserWindow: View {
                 }
             }
         }
-        .alert("New Space", isPresented: $showNewSpace) {
+        .alert(model.spacePrompt == .new ? "New Space" : "Rename Space",
+               isPresented: Binding(get: { model.spacePrompt != nil }, set: { if !$0 { model.spacePrompt = nil } })) {
             TextField("Name", text: $name)
-            Button("Create") { model.addSpace(name); name = "" }
+            Button(model.spacePrompt == .new ? "Create" : "Rename") {
+                let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                switch model.spacePrompt {
+                case .new: model.addSpace(trimmed)
+                case .rename(let id): if !trimmed.isEmpty { model.stateUpdate { $0.renameSpace(id, name: trimmed) } }
+                case nil: break
+                }
+                name = ""
+            }
             Button("Cancel", role: .cancel) { name = "" }
+        }
+        .onChange(of: showNewSpace) { _, show in if show { showNewSpace = false; name = ""; model.spacePrompt = .new } }
+        .onChange(of: model.spacePrompt) { _, prompt in
+            if case .rename(let id) = prompt { name = model.state.spaces.first { $0.id == id }?.name ?? "" }
         }
         .alert("New Folder", isPresented: $showNewFolder) {
             TextField("Name", text: $name)

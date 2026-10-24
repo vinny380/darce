@@ -81,11 +81,6 @@ struct BrowserNavigationCommands: Commands {
                 Button("Clear Today Tabs") { if privateWindows.activeSession == nil { model.clearTodayTabs() } }
                     .keyboardShortcut("k", modifiers: [.command, .shift])
                     .disabled(!model.state.visibleTabs.contains { $0.kind == .today })
-                Divider()
-                Button("Next Space") { if privateWindows.activeSession == nil { model.cycleSpace(backwards: false) } }
-                    .keyboardShortcut(.rightArrow, modifiers: [.command, .option]).disabled(model.state.spaces.count < 2)
-                Button("Previous Space") { if privateWindows.activeSession == nil { model.cycleSpace(backwards: true) } }
-                    .keyboardShortcut(.leftArrow, modifiers: [.command, .option]).disabled(model.state.spaces.count < 2)
             }
         }
     }
@@ -116,9 +111,6 @@ private struct PrivateNavigationButtons: View {
             .keyboardShortcut(.tab, modifiers: [.control]).disabled(session.tabs.isEmpty)
         Button("Previous Visible Tab") { if isActive { session.cycleTab(backwards: true) } }
             .keyboardShortcut(.tab, modifiers: [.control, .shift]).disabled(session.tabs.isEmpty)
-        Divider()
-        Button("Next Space") {}.disabled(true)
-        Button("Previous Space") {}.disabled(true)
     }
 }
 

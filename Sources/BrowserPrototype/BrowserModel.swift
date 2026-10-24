@@ -5,7 +5,7 @@ import Foundation
 import WebKit
 
 enum CommandMode { case newTab, location, split }
-enum LibraryPanel: String, Identifiable { case profiles, history, downloads, appearance, boosts, documents, browsingData; var id: String { rawValue } }
+enum LibraryPanel: String, Identifiable { case profiles, history, downloads, appearance, boosts, documents, browsingData, spaces; var id: String { rawValue } }
 
 @MainActor
 final class BrowserModel: ObservableObject {
@@ -19,6 +19,9 @@ final class BrowserModel: ObservableObject {
     @Published var panel: LibraryPanel?
     @Published var showFind = false
     @Published var siteControlsVisible = false
+    /// New Space / Rename Space, asked from the Spaces menu or the sidebar.
+    enum SpacePrompt: Equatable { case new, rename(UUID) }
+    @Published var spacePrompt: SpacePrompt?
     /// Arc's Boost editor panel for the selected site.
     @Published var boostPanelOpen = false
     @Published var boostPanelZapping = false

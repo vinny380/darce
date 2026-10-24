@@ -16,6 +16,7 @@ struct BrowserApplicationCommands: Commands {
 
     var body: some Commands {
             BrowserNavigationCommands(model: activeModel)
+            SpacesMenu(model: activeModel, privateWindows: privateWindows)
             CommandGroup(replacing: .appTermination) {
                 Button("Quit D'arce") { QuitConfirmation.request(primary: model) }.keyboardShortcut("q")
             }
@@ -113,11 +114,6 @@ struct BrowserApplicationCommands: Commands {
                 Button("Actual Size") {
                     activePage?.webView.pageZoom = 1
                 }.keyboardShortcut("0")
-                ForEach(Array(activeModel.state.spaces.prefix(9).enumerated()), id: \.element.id) { index, space in
-                    Button("Switch to \(space.name)") { activeModel.selectSpace(space.id) }
-                        .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .control)
-                        .disabled(privateWindows.isPrivateWindowActive)
-                }
             }
             }
 }
