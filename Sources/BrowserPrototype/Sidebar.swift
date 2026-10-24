@@ -78,7 +78,14 @@ struct BrowserSidebar: View {
                         if let space = model.state.spaces.first(where: { $0.id == model.state.selectedSpaceID }) { spaceActions(space) }
                     }
                     if pinnedExpanded { folderContents(parent: nil) }
-                    Rectangle().fill(.primary.opacity(0.12)).frame(height: 1).padding(.horizontal, 8).padding(.vertical, 12)
+                    HStack(spacing: 8) {
+                        Rectangle().fill(.primary.opacity(0.12)).frame(height: 1)
+                        if model.state.visibleTabs.contains(where: { $0.kind == .today }) {
+                            Button { model.clearTodayTabs() } label: {
+                                Label("Clear", systemImage: "arrow.down").font(.system(size: 11, weight: .medium))
+                            }.buttonStyle(.plain).foregroundStyle(.secondary).help("Archive all Today tabs (⇧⌘K)")
+                        }
+                    }.padding(.horizontal, 8).padding(.vertical, 12)
                     Button { model.commandMode = .newTab } label: {
                         HStack(spacing: 11) {
                             Image(systemName: "plus").frame(width: 16)
@@ -92,7 +99,7 @@ struct BrowserSidebar: View {
                         let first = model.state.visibleTabs.first { $0.kind == .today }?.id
                         return draggedTab(values).map { model.place($0, kind: .today, before: first) } ?? false
                     } isTargeted: { targeting("today-top")($0) }
-                    ForEach(model.state.visibleTabs.filter { $0.kind == .today }) { tab in tabRow(tab) }
+                    ForEach(model.state.visibleTabs.filter { $0.kind == .today }) { tab in sidebarItem(tab) }
                     // Empty space below Today: drop to add at the end.
                     Color.clear.frame(maxWidth: .infinity, minHeight: 80).contentShape(Rectangle())
                         .overlay(alignment: .top) { insertionLine(dropTarget == "today-end") }
@@ -311,7 +318,7 @@ struct BrowserSidebar: View {
                     if !closedFolders.contains(folder.id) { folderContents(parent: folder.id).padding(.leading, 14) }
                 }
             }
-            ForEach(model.state.visibleTabs.filter { $0.kind == .pinned && $0.folderID == parent }) { tab in tabRow(tab) }
+            ForEach(model.state.visibleTabs.filter { $0.kind == .pinned && $0.folderID == parent }) { tab in sidebarItem(tab) }
         })
     }
 
@@ -334,9 +341,75 @@ struct BrowserSidebar: View {
                       }, close: { model.archive(tab.id) })
             .contextMenu { tabActions(tab) }.draggable(tab.id.uuidString)
             .overlay(alignment: .top) { insertionLine(dropTarget == "tab:\(tab.id)").offset(y: -2) }
-            .dropDestination(for: String.self) { values, _ in
-                draggedTab(values).map { model.place($0, kind: tab.kind, folder: tab.folderID, before: tab.id) } ?? false
-            } isTargeted: { targeting("tab:\(tab.id)")($0) }
+            .overlay { splitPreview(dropTarget == "split:\(tab.id)") }
+            .onDrop(of: [.plainText], delegate: dropDelegate(onto: tab, canSplit: true))
+    }
+
+    private func dropDelegate(onto tab: BrowserTab, canSplit: Bool) -> TabDropDelegate {
+        TabDropDelegate(id: tab.id, canSplit: canSplit, target: $dropTarget) { [model] dragged, split in
+            if split { model.splitTab(dragged, onto: tab.id) }
+            else { model.place(dragged, kind: tab.kind, folder: tab.folderID, before: tab.id) }
+        }
+    }
+
+    /// A tab dropped here will open in split view with this one.
+    @ViewBuilder private func splitPreview(_ visible: Bool) -> some View {
+        if visible {
+            RoundedRectangle(cornerRadius: 12).strokeBorder(Color.accentColor, lineWidth: 2)
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                .overlay(alignment: .trailing) {
+                    Image(systemName: "rectangle.split.2x1").font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.accentColor).padding(.trailing, 10)
+                }
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// A split shows once in the sidebar, at its first non-Favorite tab; the other panes ride along in that row.
+    @ViewBuilder private func sidebarItem(_ tab: BrowserTab) -> some View {
+        if let group = model.state.splitGroups.first(where: { $0.tabIDs.contains(tab.id) }) {
+            if model.state.visibleTabs.first(where: { $0.kind != .favorite && group.tabIDs.contains($0.id) })?.id == tab.id {
+                splitRow(group, leader: tab)
+            }
+        } else { tabRow(tab) }
+    }
+
+    private func splitRow(_ group: BrowserSplitGroup, leader: BrowserTab) -> some View {
+        let displayed = group.tabIDs.contains { $0 == model.state.selectedTabID }
+        return HStack(spacing: 4) {
+            ForEach(group.tabIDs, id: \.self) { id in
+                if let tab = model.state.tabs.first(where: { $0.id == id }) { splitChip(tab) }
+            }
+        }
+        .padding(3)
+        .background(Palette.color(displayed ? "TabCellBackgroundContentVisible" : "SidebarItemBackground", scheme: scheme),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(alignment: .top) { insertionLine(dropTarget == "tab:\(leader.id)").offset(y: -2) }
+        .overlay { splitPreview(dropTarget == "split:\(leader.id)") }
+        .onDrop(of: [.plainText], delegate: dropDelegate(onto: leader, canSplit: group.tabIDs.count < 4))
+        .accessibilityElement(children: .contain).accessibilityLabel("Split view, \(group.tabIDs.count) tabs")
+    }
+
+    private func splitChip(_ tab: BrowserTab) -> some View {
+        let focused = model.state.selectedTabID == tab.id
+        return Button { model.select(tab.id) } label: {
+            HStack(spacing: 7) {
+                SiteIcon(controller: model.favicons, url: tab.url,
+                         profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 14)
+                Text(tab.title).font(.system(size: 13)).lineLimit(1).truncationMode(.tail)
+            }
+            .padding(.horizontal, 9).frame(maxWidth: .infinity, alignment: .leading).frame(height: 32)
+            .background(Palette.color(focused ? "TabCellBackgroundCurrent" : "SidebarItemBackground", scheme: scheme),
+                        in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).foregroundStyle(.primary.opacity(focused ? 0.9 : 0.75)).help(tab.title)
+        .contextMenu {
+            Button("Separate from Split View") { model.stateUpdate { _ = $0.removeFromSplit(tab.id) } }
+            Divider()
+            tabActions(tab)
+        }
+        .draggable(tab.id.uuidString)
     }
 
     /// Where a dragged tab will land.

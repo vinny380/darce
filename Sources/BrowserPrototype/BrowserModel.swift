@@ -254,6 +254,8 @@ final class BrowserModel: ObservableObject {
         return saved ? id : nil
     }
     func move(_ id: UUID, into folder: UUID?) { stateUpdate { _ = $0.moveTab(id, into: folder) } }
+    /// Drag one sidebar tab onto another; see `BrowserState.splitTab`.
+    func splitTab(_ id: UUID, onto target: UUID) { stateUpdate { _ = $0.splitTab(id, onto: target) } }
     /// Drag and drop into any sidebar section; see `BrowserState.placeTab`.
     @discardableResult
     func place(_ id: UUID, kind: TabKind, folder: UUID? = nil, before target: UUID? = nil) -> Bool {

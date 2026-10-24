@@ -45,7 +45,7 @@
     </td>
     <td valign="top">
       <h3>◫ Split view &amp; Peek</h3>
-      Two to four tabs side by side, saved across launches. Links from pinned tabs open in a Peek, so the pin stays put.
+      Drop one tab onto another to put them side by side, up to four. A split shows as one row in the sidebar and is saved across launches. Links from pinned tabs open in a Peek, so the pin stays put.
     </td>
   </tr>
   <tr>
