@@ -244,7 +244,16 @@ final class BrowserModel: ObservableObject {
     func selectSpace(_ id: UUID) { stateUpdate { $0.selectSpace(id) } }
     func pin(_ id: UUID, kind: TabKind) { stateUpdate { $0.setKind(id, kind: kind) } }
     func move(_ id: UUID, to space: UUID) { stateUpdate { $0.moveTab(id, to: space) } }
-    func archive(_ id: UUID) { stateUpdate { $0.archiveTab(id) } }
+    func archive(_ id: UUID) { closeWithUndo([id], name: "Close Tab") { $0.archiveTab(id) } }
+
+    /// Closes tabs so ⌘Z (Edit ▸ Undo) puts them back exactly where they were, like Arc. Uses the window's undo
+    /// history, so ⌘Z in a text field still undoes typing first.
+    private func closeWithUndo(_ ids: [UUID], name: String, _ change: (inout BrowserState) -> Void) {
+        let snapshots = state.tabs.filter { ids.contains($0.id) && $0.kind != .archived }
+        guard stateUpdate(change), !snapshots.isEmpty, let undo = BrowserWindows.shared.window(for: self)?.undoManager else { return }
+        undo.registerUndo(withTarget: self) { model in model.stateUpdate { $0.undoClose(snapshots) } }
+        undo.setActionName(name)
+    }
     func restore(_ id: UUID) { stateUpdate { $0.restoreTab(id, select: false) } }
     var archivedTabs: [BrowserTab] {
         state.tabs.filter { $0.kind == .archived && state.profileID(forTab: $0.id) == state.selectedProfileID }
@@ -306,12 +315,13 @@ final class BrowserModel: ObservableObject {
     }
     func closeSelectedPane() {
         guard let group = state.selectedSplitGroup, let id = state.selectedTabID else { return }
-        stateUpdate { $0.closePane(id, from: group.id) }
+        closeWithUndo([id], name: "Close Tab") { $0.closePane(id, from: group.id) }
     }
     func cycleSpace(backwards: Bool) { stateUpdate { BrowserOrderedNavigation.cycleSpace(&$0, backwards: backwards) } }
     /// Archives every Today tab in this Space; Favorites and pins stay.
     func clearTodayTabs() {
-        stateUpdate { state in for tab in state.visibleTabs where tab.kind == .today { state.archiveTab(tab.id) } }
+        let ids = state.visibleTabs.filter { $0.kind == .today }.map(\.id)
+        closeWithUndo(ids, name: "Clear Today Tabs") { state in ids.forEach { state.archiveTab($0) } }
     }
     func separatePane(_ id: UUID, from groupID: UUID) {
         stateUpdate { state in
