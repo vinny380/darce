@@ -10,6 +10,10 @@ public struct ImportOptions: Equatable, Sendable {
     public var spacesAndTabs = true
     public var bookmarks = true
     public var history = true
+    public var cookies = true
+    /// Clear the D'arce profile's cookies first. nil = only for profiles this import creates.
+    public var replaceCookies: Bool?
+    public var extensions = true
     public init() {}
 }
 
@@ -34,6 +38,9 @@ public struct ImportOutcome: Equatable, Sendable {
     public var counts: [String: Int] = ["spaces": 0, "tabs": 0, "folders": 0, "favorites": 0, "bookmarks": 0]
     public var skipped: [String] = []
     public var firstSpaceID: UUID?
+    /// Source profile key → the D'arce profile it went into, and which of those this import created.
+    public var profileIDs: [String: UUID] = [:]
+    public var newProfileIDs: Set<UUID> = []
     public init() {}
 }
 
@@ -80,7 +87,8 @@ extension BrowserState {
                 || hasNew(source.favorites))
         let wantsBookmarks = options.bookmarks && hasNew(source.bookmarks)
         let wantsHistory = options.history && !source.history.isEmpty
-        guard wantsSpaces || wantsBookmarks || wantsHistory else { return }
+        let wantsCookies = options.cookies && source.cookieCount > 0
+        guard wantsSpaces || wantsBookmarks || wantsHistory || wantsCookies else { return }
 
         let profileKey = "\(source.key):profile"
         let profileID: UUID
@@ -97,11 +105,14 @@ extension BrowserState {
                 renameProfile(profileID, name: source.name)
                 reusedStarterProfile = true
                 importedIDs[profileKey] = profileID
+                outcome.newProfileIDs.insert(profileID)
             } else {
                 profileID = addProfile(name: source.name)
                 importedIDs[profileKey] = profileID
+                outcome.newProfileIDs.insert(profileID)
             }
         }
+        outcome.profileIDs[source.key] = profileID
 
         var firstSpace: UUID?
         func note(_ space: UUID, _ outcome: inout ImportOutcome) {

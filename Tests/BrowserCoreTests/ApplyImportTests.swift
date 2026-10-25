@@ -196,3 +196,12 @@ private func title(_ state: BrowserState, _ id: UUID?) -> String? { state.tabs.f
     state.selectSpace(personal)
     #expect(state.selectedTabID == mine)
 }
+
+@Test func outcomeMapsSourceProfilesToDarceProfiles() throws {
+    var state = BrowserState()
+    _ = state.openTab(url: URL(string: "https://mine.example/")!)
+    let outcome = state.applyImport([arcProfile(), chromeProfile()], from: .arc, into: .newProfiles, options: ImportOptions())
+    #expect(outcome.profileIDs["arc:Default"] == state.profiles[1].id)
+    #expect(outcome.profileIDs["chrome:Default"] == state.profiles[2].id)
+    #expect(outcome.newProfileIDs == [state.profiles[1].id, state.profiles[2].id])
+}

@@ -53,3 +53,46 @@ private func support(_ home: URL) -> URL { home.appendingPathComponent("Library/
     #expect(profiles[1].bookmarks.count == 1)
     #expect(profiles[1].skipped.contains { $0.hasPrefix("History") })
 }
+
+private func chromeWithCookies(_ home: URL, profiles: [String]) throws -> URL {
+    let chrome = support(home).appendingPathComponent("Google/Chrome")
+    try ChromiumFixture.localState(profiles.map { ($0, $0) }, at: chrome)
+    for profile in profiles {
+        let folder = chrome.appendingPathComponent(profile)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try cookiesDB([CookieRow()], in: folder)
+        try JSONSerialization.data(withJSONObject: ["extensions": ["settings": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+            "location": 1, "from_webstore": true, "disable_reasons": [Int](), "manifest": ["name": "Ext"]]]]])
+            .write(to: folder.appendingPathComponent("Secure Preferences"))
+    }
+    return chrome
+}
+
+@Test func readFillsCookieCountsAndExtensionsWithoutTheKeychain() throws {
+    let home = try TemporaryDirectory()
+    _ = try chromeWithCookies(home.url, profiles: ["Default"])
+    let profile = try #require(try ImportSources.read(.chrome, home: home.url).first)
+    #expect(profile.cookieCount == 1)
+    #expect(profile.extensions.map(\.name) == ["Ext"])
+}
+
+@Test func cookiesCallsTheSecretOnce() throws {
+    let home = try TemporaryDirectory()
+    _ = try chromeWithCookies(home.url, profiles: ["Default", "Profile 1"])
+    let profiles = try ImportSources.read(.chrome, home: home.url)
+    var calls = 0
+    let result = ImportSources.cookies(profiles, browser: .chrome) { calls += 1; return Data("fixture secret".utf8) }
+    #expect(calls == 1)
+    #expect(result.cookies["chrome:Default"]?.map(\.value) == ["secret-value"])
+    #expect(result.cookies["chrome:Profile 1"]?.count == 1)
+    #expect(result.skipped.isEmpty)
+}
+
+@Test func deniedKeychainSkipsCookiesWithAReason() throws {
+    let home = try TemporaryDirectory()
+    _ = try chromeWithCookies(home.url, profiles: ["Default"])
+    let profiles = try ImportSources.read(.chrome, home: home.url)
+    let result = ImportSources.cookies(profiles, browser: .chrome) { throw SafeStorage.KeychainError.denied }
+    #expect(result.cookies.isEmpty)
+    #expect(result.skipped == ["Cookies: you didn't allow access to Google Chrome's Safe Storage"])
+}

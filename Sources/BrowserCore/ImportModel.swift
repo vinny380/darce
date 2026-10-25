@@ -73,6 +73,9 @@ public struct ImportedProfile: Equatable, Sendable {
     /// Already rooted: bookmark bar items, then "Other Bookmarks" / "Mobile Bookmarks" folders.
     public var bookmarks: [ImportedItem] = []
     public var history: [ImportedVisit] = []
+    /// Cookies to bring over, counted without decrypting (decrypting needs the keychain; see `ImportSources.cookies`).
+    public var cookieCount = 0
+    public var extensions: [ImportedExtension] = []
     /// Human-readable lines for "Didn't come over".
     public var skipped: [String] = []
 

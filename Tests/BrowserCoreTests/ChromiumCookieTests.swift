@@ -6,9 +6,10 @@ import Testing
 @testable import BrowserCore
 
 /// Reading Chromium's cookie database. Each test names the bug it catches.
-private let key = SafeStorage.key(secret: Data("fixture secret".utf8))
+let cookieFixtureKey = SafeStorage.key(secret: Data("fixture secret".utf8))
+private let key = cookieFixtureKey
 
-private func encrypt(_ plain: Data) -> Data {
+func encrypt(_ plain: Data) -> Data {
     let iv = [UInt8](repeating: 0x20, count: 16)
     var output = Data(count: plain.count + 16)
     var length = 0
@@ -24,13 +25,13 @@ private func encrypt(_ plain: Data) -> Data {
     return Data("v10".utf8) + output.prefix(length)
 }
 
-private struct Row {
+struct CookieRow {
     var host = ".example.com", partition = "", name = "session", value = "secret-value", path = "/"
     var expires: Date? = Date().addingTimeInterval(86_400), secure = true, httpOnly = true, sameSite = -1
     var hashPrefix = true, garbage = false
 }
 
-private func cookiesDB(_ rows: [Row], version: Int = 24, in folder: URL) throws {
+func cookiesDB(_ rows: [CookieRow], version: Int = 24, in folder: URL) throws {
     var db: OpaquePointer?
     guard sqlite3_open(folder.appendingPathComponent("Cookies").path, &db) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
     defer { sqlite3_close(db) }
@@ -70,41 +71,41 @@ private func cookiesDB(_ rows: [Row], version: Int = 24, in folder: URL) throws 
     }
 }
 
-private func readCookies(_ rows: [Row], version: Int = 24, now: Date = Date()) throws -> (cookies: [ImportedCookie], undecryptable: Int) {
+private func readCookies(_ rows: [CookieRow], version: Int = 24, now: Date = Date()) throws -> (cookies: [ImportedCookie], undecryptable: Int) {
     let folder = try TemporaryDirectory()
     try cookiesDB(rows, version: version, in: folder.url)
     return try ChromiumReader.cookies(profile: folder.url, key: key, now: now)
 }
 
 @Test func stripsTheHostHashOnVersion24() throws {
-    let result = try readCookies([Row()])
+    let result = try readCookies([CookieRow()])
     #expect(result.cookies.map(\.value) == ["secret-value"])
     #expect(result.cookies.first?.domain == ".example.com")
 }
 
 @Test func keepsValuesWithoutTheHostHash() throws {
-    var row = Row()
+    var row = CookieRow()
     row.hashPrefix = false
     row.value = String(repeating: "x", count: 40)   // long enough to be mistaken for a prefix
     #expect(try readCookies([row]).cookies.map(\.value) == [row.value])
 }
 
 @Test func oldVersionsKeepThePlaintext() throws {
-    var row = Row()
+    var row = CookieRow()
     row.hashPrefix = false
     #expect(try readCookies([row], version: 23).cookies.map(\.value) == ["secret-value"])
 }
 
 @Test func skipsPartitionedAndExpiredCookies() throws {
-    var partitioned = Row(), expired = Row()
+    var partitioned = CookieRow(), expired = CookieRow()
     partitioned.partition = "https://top.example"
     expired.name = "old"
     expired.expires = Date().addingTimeInterval(-60)
-    #expect(try readCookies([Row(), partitioned, expired]).cookies.map(\.name) == ["session"])
+    #expect(try readCookies([CookieRow(), partitioned, expired]).cookies.map(\.name) == ["session"])
 }
 
 @Test func sessionCookiesHaveNoExpiry() throws {
-    var row = Row()
+    var row = CookieRow()
     row.expires = nil
     let cookies = try readCookies([row]).cookies
     #expect(cookies.count == 1 && cookies[0].expires == nil)
@@ -112,29 +113,29 @@ private func readCookies(_ rows: [Row], version: Int = 24, now: Date = Date()) t
 
 @Test func farExpiriesAreClampedTo400Days() throws {
     let now = Date()
-    var row = Row()
+    var row = CookieRow()
     row.expires = now.addingTimeInterval(5 * 365 * 86_400)
     let expires = try #require(try readCookies([row], now: now).cookies.first?.expires)
     #expect(abs(expires.timeIntervalSince(now) - 400 * 86_400) < 2)
 }
 
 @Test func mapsSameSite() throws {
-    let rows = [-1, 0, 1, 2].map { value -> Row in var row = Row(); row.name = "s\(value)"; row.sameSite = value; return row }
+    let rows = [-1, 0, 1, 2].map { value -> CookieRow in var row = CookieRow(); row.name = "s\(value)"; row.sameSite = value; return row }
     #expect(try readCookies(rows).cookies.map(\.sameSite) == [nil, nil, "lax", "strict"])
 }
 
 @Test func countsUndecryptableRows() throws {
-    var bad = Row()
+    var bad = CookieRow()
     bad.name = "bad"
     bad.garbage = true
-    let result = try readCookies([Row(), bad])
+    let result = try readCookies([CookieRow(), bad])
     #expect(result.cookies.map(\.name) == ["session"] && result.undecryptable == 1)
 }
 
 @Test func cookieCountNeedsNoKey() throws {
     let folder = try TemporaryDirectory()
-    var partitioned = Row()
+    var partitioned = CookieRow()
     partitioned.partition = "https://top.example"
-    try cookiesDB([Row(), Row(name: "two"), partitioned], in: folder.url)
+    try cookiesDB([CookieRow(), CookieRow(name: "two"), partitioned], in: folder.url)
     #expect(ChromiumReader.cookieCount(profile: folder.url) == 2)
 }

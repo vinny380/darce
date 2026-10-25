@@ -59,7 +59,34 @@ public enum ImportSources {
             catch { profiles[index].skipped.append("History from \(profiles[index].name): \(error.localizedDescription)") }
             do { profiles[index].bookmarks = try ChromiumReader.bookmarks(profile: directory, keyPrefix: profiles[index].key, skipped: &profiles[index].skipped) }
             catch { profiles[index].skipped.append("Bookmarks from \(profiles[index].name): \(error.localizedDescription)") }
+            profiles[index].cookieCount = ChromiumReader.cookieCount(profile: directory)
+            profiles[index].extensions = ChromiumReader.extensions(profile: directory)
         }
-        return profiles.filter { !($0.spaces.isEmpty && $0.favorites.isEmpty && $0.bookmarks.isEmpty && $0.history.isEmpty) }
+        return profiles.filter {
+            !($0.spaces.isEmpty && $0.favorites.isEmpty && $0.bookmarks.isEmpty && $0.history.isEmpty && $0.cookieCount == 0 && $0.extensions.isEmpty)
+        }
+    }
+
+    /// Each profile's cookies, decrypted. `secret` reads the browser's Safe Storage key from the keychain (macOS asks
+    /// the user) and is called at most once; if it fails, no cookies come over and the reason is listed.
+    public static func cookies(_ profiles: [ImportedProfile], browser: ImportBrowser,
+                               secret: () throws -> Data) -> (cookies: [String: [ImportedCookie]], skipped: [String]) {
+        let sources = profiles.filter { $0.cookieCount > 0 && $0.directory != nil }
+        guard !sources.isEmpty else { return ([:], []) }
+        let key: Data
+        do { key = SafeStorage.key(secret: try secret()) }
+        catch SafeStorage.KeychainError.denied { return ([:], ["Cookies: you didn't allow access to \(browser.displayName)'s Safe Storage"]) }
+        catch { return ([:], ["Cookies: \(error.localizedDescription)"]) }
+        var cookies: [String: [ImportedCookie]] = [:], skipped: [String] = []
+        for profile in sources {
+            do {
+                let result = try ChromiumReader.cookies(profile: profile.directory!, key: key)
+                cookies[profile.key] = result.cookies
+                if result.undecryptable > 0 { skipped.append("\(result.undecryptable) cookies from \(profile.name) couldn't be decrypted") }
+            } catch {
+                skipped.append("Cookies from \(profile.name): \(error.localizedDescription)")
+            }
+        }
+        return (cookies, skipped)
     }
 }
