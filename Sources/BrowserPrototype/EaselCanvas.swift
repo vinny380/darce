@@ -53,6 +53,10 @@ struct EaselCanvas: View {
     @FocusState private var titleFocused: Bool
     @FocusState private var canvasFocused: Bool
     @FocusState private var textFocused: Bool
+    @State private var viewport = EaselViewport()
+    @State private var viewSize: CGSize = .zero
+    @State private var lastPan: CGSize?
+    @State private var placedViewport = false
 
     private struct Draft { var start: CGPoint; var end: CGPoint; var points: [CGPoint] }
     static let palette = ["#F5F5F7", "#1D1D1F", "#FF5A5F", "#F1A23C", "#55B948", "#017AFF", "#860EFF"]
@@ -64,23 +68,31 @@ struct EaselCanvas: View {
     var body: some View {
         if let document {
             ZStack(alignment: .bottom) {
-                GeometryReader { viewport in
-                    ScrollView([.horizontal, .vertical]) {
-                        canvas(document, minSize: viewport.size)
-                    }.scrollIndicators(.automatic)
+                GeometryReader { geometry in
+                    canvas(document)
+                        .onAppear { viewSize = geometry.size; placeViewport(document) }
+                        .onChange(of: geometry.size) { _, size in viewSize = size }
                 }
-                HStack(alignment: .bottom) {
+                .clipped()
+                HStack(alignment: .bottom, spacing: 8) {
                     toolbar
                     Spacer()
+                    zoomControls
                     Button { export() } label: {
                         Image(systemName: "square.and.arrow.up").font(.system(size: 15, weight: .medium)).frame(width: 40, height: 40)
                             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }.buttonStyle(.plain).help("Export this Easel")
                 }.padding(14)
             }
+            .onAppear { model.easelZoom = { zoomCommand($0) } }
+            .onDisappear { model.easelZoom = nil }
             .background(Color(nsColor: .textBackgroundColor))
             .onAppear { title = document.title }
-            .onChange(of: documentID) { _, _ in title = self.document?.title ?? ""; selection = nil; editingText = nil }
+            .onChange(of: documentID) { _, _ in
+                title = self.document?.title ?? ""; selection = nil; editingText = nil
+                placedViewport = false
+                if let document = self.document { placeViewport(document) }
+            }
         } else {
             ContentUnavailableView("Easel Unavailable", systemImage: "scribble.variable",
                                    description: Text("This Easel was deleted or belongs to another profile."))
@@ -89,32 +101,107 @@ struct EaselCanvas: View {
 
     // MARK: Canvas
 
-    private func canvas(_ document: BrowserDocument, minSize: CGSize) -> some View {
-        let width = max(minSize.width, (document.cards.map { $0.x + $0.width }.max() ?? 0) + 400)
-        let height = max(minSize.height, (document.cards.map { $0.y + $0.height }.max() ?? 0) + 400)
-        return ZStack(alignment: .topLeading) {
-            // Background: where new items are drawn or placed.
+    private func canvas(_ document: BrowserDocument) -> some View {
+        ZStack(alignment: .topLeading) {
+            // Empty canvas: draw or place new items, or drag to pan with the select tool.
             Color.clear.contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance: 0).onChanged(drawChanged).onEnded(drawEnded))
+                .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.space)).onChanged(drawChanged).onEnded(drawEnded))
+            // The infinite canvas: items at canvas positions, scaled and moved by the viewport.
+            ZStack(alignment: .topLeading) {
+                ForEach(document.cards) { card in item(card) }
+                if let draft { draftView(draft) }
+            }
+            .frame(width: 1, height: 1, alignment: .topLeading)
+            .scaleEffect(viewport.scale, anchor: .topLeading)
+            .offset(x: viewport.offset.x, y: viewport.offset.y)
             TextField("Untitled Easel", text: $title)
                 .textFieldStyle(.plain).font(.system(size: 34, weight: .bold)).multilineTextAlignment(.center)
-                .focused($titleFocused).frame(width: min(600, width - 80))
-                .position(x: minSize.width / 2, y: 70)
+                .focused($titleFocused).frame(maxWidth: 600).padding(.top, 48)
+                .frame(maxWidth: .infinity)
                 .onSubmit { commitTitle() }
                 .onChange(of: titleFocused) { _, focused in if !focused { commitTitle() } }
-            ForEach(document.cards) { card in item(card) }
-            if let draft { draftView(draft) }
         }
-        .frame(width: width, height: height)
+        .coordinateSpace(.named(Self.space))
+        .background(CanvasInput(onScroll: scrolled, onMagnify: magnified, onSmartMagnify: smartMagnified))
         .focusable().focusEffectDisabled().focused($canvasFocused)
         .onDeleteCommand { deleteSelection() }
-        .onKeyPress(characters: .letters) { press in
-            guard editingText == nil, !titleFocused, let next = Self.shortcut(press.characters) else { return .ignored }
-            tool = next
-            return .handled
+        .onKeyPress(characters: .letters.union(.punctuationCharacters).union(.symbols)) { press in
+            guard editingText == nil, !titleFocused else { return .ignored }
+            switch press.characters {
+            case "!": zoomToFit(); return .handled
+            case ")": zoomTo100(); return .handled
+            default:
+                guard let next = Self.shortcut(press.characters) else { return .ignored }
+                tool = next
+                return .handled
+            }
         }
         .onPasteCommand(of: [.png, .tiff, .image, .fileURL, .plainText]) { providers in paste(providers) }
-        .onDrop(of: [.fileURL, .image], isTargeted: nil) { providers, location in drop(providers, at: location) }
+        .onDrop(of: [.fileURL, .image], isTargeted: nil) { providers, location in drop(providers, at: viewport.toCanvas(location)) }
+    }
+
+    private static let space = "easel"
+
+    // MARK: Viewport
+
+    /// On opening: everything in view (zooming out if needed), or the canvas origin near the top-left for a new Easel.
+    private func placeViewport(_ document: BrowserDocument) {
+        guard !placedViewport, viewSize != .zero else { return }
+        placedViewport = true
+        if let bounds = Self.bounds(document.cards) { viewport.fit(bounds, in: viewSize, padding: 120) }
+        else { viewport = EaselViewport(scale: 1, offset: CGPoint(x: 40, y: 120)) }
+    }
+
+    private static func bounds(_ cards: [DocumentCard]) -> CGRect? {
+        cards.map { CGRect(x: $0.x, y: $0.y, width: max($0.width, 1), height: max($0.height, 1)) }.reduce(nil) { $0?.union($1) ?? $1 }
+    }
+
+    private func scrolled(_ delta: CGSize, _ zoom: Bool, _ location: CGPoint) {
+        if zoom { animateViewport(false) { viewport.zoom(by: exp(delta.height / 200), around: location) } }
+        else { viewport.pan(by: delta) }
+    }
+
+    private func magnified(_ magnification: CGFloat, _ location: CGPoint) {
+        viewport.zoom(by: 1 + magnification, around: location)
+    }
+
+    /// Two-finger double-tap, like Safari: fit everything, or back to 100% if already fitted.
+    private func smartMagnified(_ location: CGPoint) {
+        if abs(viewport.scale - 1) < 0.01 { zoomToFit() } else { animateViewport { viewport.zoom(by: 1 / viewport.scale, around: location) } }
+    }
+
+    private func zoomToFit() {
+        guard let document, let bounds = Self.bounds(document.cards) else { return }
+        animateViewport { viewport.fit(bounds, in: viewSize, padding: 120) }
+    }
+
+    private func zoomTo100() {
+        animateViewport { viewport.zoom(by: 1 / viewport.scale, around: CGPoint(x: viewSize.width / 2, y: viewSize.height / 2)) }
+    }
+
+    /// ⌘+ / ⌘− / ⌘0 from the View menu while this Easel is showing.
+    private func zoomCommand(_ step: Int) {
+        let center = CGPoint(x: viewSize.width / 2, y: viewSize.height / 2)
+        if step == 0 { zoomTo100() } else { animateViewport { viewport.zoom(by: step > 0 ? 1.25 : 0.8, around: center) } }
+    }
+
+    private func animateViewport(_ animated: Bool = true, _ change: () -> Void) {
+        withAnimation(animated ? .smooth(duration: 0.25) : nil, change)
+    }
+
+    private var zoomControls: some View {
+        HStack(spacing: 0) {
+            Button { zoomCommand(-1) } label: { Image(systemName: "minus").frame(width: 30, height: 40) }.help("Zoom Out (⌘−)")
+            Menu {
+                Button("Zoom to Fit  ⇧1") { zoomToFit() }
+                Button("Zoom to 100%  ⇧0") { zoomTo100() }
+            } label: {
+                Text("\(Int((viewport.scale * 100).rounded()))%").font(.system(size: 12, weight: .semibold)).monospacedDigit().frame(width: 48, height: 40)
+            }.menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+            Button { zoomCommand(1) } label: { Image(systemName: "plus").frame(width: 30, height: 40) }.help("Zoom In (⌘+)")
+        }
+        .buttonStyle(.plain).font(.system(size: 13, weight: .semibold))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private static func shortcut(_ key: String) -> EaselTool? {
@@ -142,7 +229,9 @@ struct EaselCanvas: View {
                     Circle().fill(.white).overlay(Circle().strokeBorder(Color.accentColor, lineWidth: 2))
                         .frame(width: 12, height: 12)
                         .position(x: size.width + 6, y: size.height + 6)
-                        .gesture(DragGesture().onChanged { resizing = $0.translation }.onEnded { _ in commitResize(card) })
+                        .gesture(DragGesture(coordinateSpace: .named(Self.space)).onChanged { value in
+                            resizing = CGSize(width: value.translation.width / viewport.scale, height: value.translation.height / viewport.scale)
+                        }.onEnded { _ in commitResize(card) })
                 }
             }
         }
@@ -152,8 +241,11 @@ struct EaselCanvas: View {
         .allowsHitTesting(tool == .select)
         .onTapGesture(count: 2) { if case .text(let text) = card.content { beginEditing(card.id, text: text) } }
         .onTapGesture { selection = card.id; canvasFocused = true; finishEditing() }
-        .gesture(editingText == card.id ? nil : DragGesture(minimumDistance: 3)
-            .onChanged { value in selection = card.id; moving = value.translation }
+        .gesture(editingText == card.id ? nil : DragGesture(minimumDistance: 3, coordinateSpace: .named(Self.space))
+            .onChanged { value in
+                selection = card.id
+                moving = CGSize(width: value.translation.width / viewport.scale, height: value.translation.height / viewport.scale)
+            }
             .onEnded { _ in commitMove(card) })
         .contextMenu {
             Button("Delete", role: .destructive) { documents.deleteCard(card.id, from: documentID, profileID: profileID) }
@@ -209,25 +301,32 @@ struct EaselCanvas: View {
     // MARK: Drawing
 
     private func drawChanged(_ value: DragGesture.Value) {
+        let start = viewport.toCanvas(value.startLocation), location = viewport.toCanvas(value.location)
         switch tool {
         case .rectangle, .ellipse, .arrow, .draw:
-            if draft == nil { draft = Draft(start: value.startLocation, end: value.location, points: [value.startLocation]) }
-            draft?.end = value.location
-            if tool == .draw { draft?.points.append(value.location) }
+            if draft == nil { draft = Draft(start: start, end: location, points: [start]) }
+            draft?.end = location
+            if tool == .draw { draft?.points.append(location) }
+        case .select:
+            // Dragging empty canvas pans it.
+            let previous = lastPan ?? .zero
+            viewport.pan(by: CGSize(width: value.translation.width - previous.width, height: value.translation.height - previous.height))
+            lastPan = value.translation
         default: break
         }
     }
 
     private func drawEnded(_ value: DragGesture.Value) {
-        defer { draft = nil }
+        defer { draft = nil; lastPan = nil }
+        let location = viewport.toCanvas(value.location)
         switch tool {
         case .select:
-            selection = nil
+            if hypot(value.translation.width, value.translation.height) < 3 { selection = nil }
             finishEditing()
             canvasFocused = true
         case .text:
             let id = documents.addCard(.text(""), to: documentID, profileID: profileID,
-                                       frame: CGRect(x: value.location.x, y: value.location.y, width: 260, height: 80))
+                                       frame: CGRect(x: location.x, y: location.y, width: 260, height: 80))
             tool = .select
             if let id { selection = id; beginEditing(id, text: "") }
         case .rectangle, .ellipse:
@@ -259,7 +358,7 @@ struct EaselCanvas: View {
         defer { moving = .zero }
         guard moving != .zero else { return }
         _ = documents.updateCard(card, documentID: documentID, profileID: profileID,
-                                 x: max(0, card.x + moving.width), y: max(0, card.y + moving.height), width: card.width, height: card.height)
+                                 x: card.x + moving.width, y: card.y + moving.height, width: card.width, height: card.height)
     }
 
     private func commitResize(_ card: DocumentCard) {
@@ -312,7 +411,8 @@ struct EaselCanvas: View {
               let card = documents.document(documentID, profileID: profileID)?.cards.first(where: { $0.id == id }) else { return }
         let scale = min(1, 480 / max(image.size.width, 1), 360 / max(image.size.height, 1))
         let size = CGSize(width: max(120, image.size.width * scale), height: max(80, image.size.height * scale))
-        let origin = point ?? CGPoint(x: 120 + Double(card.id.hashValue & 0x3F), y: 160)
+        let center = viewport.toCanvas(CGPoint(x: viewSize.width / 2, y: viewSize.height / 2))
+        let origin = point ?? CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2)
         _ = documents.updateCard(card, documentID: documentID, profileID: profileID, x: origin.x, y: origin.y, width: size.width, height: size.height)
         selection = id
         tool = .select
@@ -324,7 +424,8 @@ struct EaselCanvas: View {
         panel.allowsMultipleSelection = true
         guard panel.runModal() == .OK else { return }
         for (index, url) in panel.urls.enumerated() {
-            if let image = NSImage(contentsOf: url) { addImage(image, at: CGPoint(x: 140 + index * 40, y: 180 + index * 40)) }
+            let center = viewport.toCanvas(CGPoint(x: viewSize.width / 2, y: viewSize.height / 2))
+            if let image = NSImage(contentsOf: url) { addImage(image, at: CGPoint(x: center.x - 200 + Double(index) * 40, y: center.y - 150 + Double(index) * 40)) }
         }
     }
 
@@ -343,7 +444,8 @@ struct EaselCanvas: View {
     private func paste(_ providers: [NSItemProvider]) {
         if let image = NSImage(pasteboard: .general) { addImage(image); return }
         if let text = NSPasteboard.general.string(forType: .string), !text.isEmpty {
-            selection = documents.addCard(.text(text), to: documentID, profileID: profileID, frame: CGRect(x: 160, y: 200, width: 320, height: 120))
+            let center = viewport.toCanvas(CGPoint(x: viewSize.width / 2, y: viewSize.height / 2))
+            selection = documents.addCard(.text(text), to: documentID, profileID: profileID, frame: CGRect(x: center.x - 160, y: center.y - 60, width: 320, height: 120))
         }
     }
 
@@ -460,5 +562,56 @@ extension Color {
     init(hex: String) {
         let value = UInt32(hex.dropFirst(), radix: 16) ?? 0xFFFFFF
         self.init(.sRGB, red: Double((value >> 16) & 0xFF) / 255, green: Double((value >> 8) & 0xFF) / 255, blue: Double(value & 0xFF) / 255)
+    }
+}
+
+/// Trackpad and mouse input for the infinite canvas: two-finger scroll pans (⌘ or a mouse wheel's ⌘-scroll zooms),
+/// pinch zooms, two-finger double-tap toggles fit. Watches events over this view only; never takes clicks.
+private struct CanvasInput: NSViewRepresentable {
+    let onScroll: (CGSize, Bool, CGPoint) -> Void
+    let onMagnify: (CGFloat, CGPoint) -> Void
+    let onSmartMagnify: (CGPoint) -> Void
+
+    func makeNSView(context: Context) -> InputView { InputView() }
+    func updateNSView(_ view: InputView, context: Context) {
+        view.onScroll = onScroll
+        view.onMagnify = onMagnify
+        view.onSmartMagnify = onSmartMagnify
+    }
+
+    final class InputView: NSView {
+        var onScroll: ((CGSize, Bool, CGPoint) -> Void)?
+        var onMagnify: ((CGFloat, CGPoint) -> Void)?
+        var onSmartMagnify: ((CGPoint) -> Void)?
+        private var monitor: Any?
+        override var isFlipped: Bool { true }
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel, .magnify, .smartMagnify]) { [weak self] event in
+                MainActor.assumeIsolated { self?.handle(event) == true } ? nil : event
+            }
+        }
+
+        private func handle(_ event: NSEvent) -> Bool {
+            guard event.window === window else { return false }
+            let location = convert(event.locationInWindow, from: nil)
+            guard bounds.contains(location) else { return false }
+            switch event.type {
+            case .scrollWheel:
+                let factor: CGFloat = event.hasPreciseScrollingDeltas ? 1 : 10
+                let zoom = event.modifierFlags.contains(.command)
+                onScroll?(CGSize(width: event.scrollingDeltaX * factor, height: event.scrollingDeltaY * factor), zoom, location)
+            case .magnify: onMagnify?(event.magnification, location)
+            case .smartMagnify: onSmartMagnify?(location)
+            default: return false
+            }
+            return true
+        }
+
     }
 }

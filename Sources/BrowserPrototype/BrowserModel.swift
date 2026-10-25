@@ -33,6 +33,8 @@ final class BrowserModel: ObservableObject {
     @Published var spacePrompt: SpacePrompt?
     /// Arc's Library, shown in place of the sidebar.
     @Published var libraryOpen = false
+    /// Set while an Easel is showing: ⌘+/⌘−/⌘0 zoom its canvas instead of a web page (+1 in, −1 out, 0 = 100%).
+    var easelZoom: ((Int) -> Void)?
     @Published var libraryCategory = LibraryCategory.downloads
     /// Arc's Boost editor panel for the selected site.
     @Published var boostPanelOpen = false

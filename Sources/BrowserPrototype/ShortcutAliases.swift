@@ -12,6 +12,7 @@ enum ShortcutAliases {
         let mods = flags.intersection([.command, .control, .option, .shift])
         switch Int(keyCode) {
         case kVK_ANSI_Equal where mods == .command || mods == [.command, .shift]: return .zoomIn
+        case kVK_ANSI_KeypadEquals, kVK_ANSI_KeypadPlus where mods == .command: return .zoomIn  // the number pad's = and +
         case kVK_ANSI_Equal where mods == [.control, .shift]: return .addSplit
         case kVK_ANSI_Minus where mods == [.control, .shift]: return .closeSplitPane
         default: return nil
@@ -38,6 +39,7 @@ enum ShortcutAliases {
         guard let model = BrowserWindows.shared.activeModel else { return false }
         switch action {
         case .zoomIn:
+            if model.state.selectedTab?.url.easelID != nil, let zoom = model.easelZoom { zoom(1); return true }
             guard let page = model.selectedPage else { return false }
             page.webView.pageZoom = min(3, page.webView.pageZoom + 0.1)
         case .addSplit:
@@ -62,6 +64,7 @@ func runShortcutAliasSmoke() -> [String: Bool] {
         "shortcut_ctrl_shift_minus_closes_split_pane": ShortcutAliases.action(keyCode: minus, flags: [.control, .shift]) == .closeSplitPane,
         "shortcut_cmd_minus_left_to_zoom_out_menu": ShortcutAliases.action(keyCode: minus, flags: .command) == nil,
         "shortcut_plain_equal_left_to_page": ShortcutAliases.action(keyCode: equal, flags: []) == nil,
+        "shortcut_keypad_plus_zooms_in": ShortcutAliases.action(keyCode: UInt16(kVK_ANSI_KeypadPlus), flags: .command) == .zoomIn,
         "shortcut_option_cmd_equal_not_taken": ShortcutAliases.action(keyCode: equal, flags: [.command, .option]) == nil,
     ]
 }

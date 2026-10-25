@@ -9,6 +9,11 @@ struct BrowserApplicationCommands: Commands {
     @ObservedObject private var normalWindows = BrowserWindows.shared
 
     private var activeModel: BrowserModel { normalWindows.activeModel ?? model }
+    /// The showing Easel's zoom, when the selected tab is one (not in private windows).
+    private var easelZoom: ((Int) -> Void)? {
+        guard privateWindows.activeSession == nil, activeModel.state.selectedTab?.url.easelID != nil else { return nil }
+        return activeModel.easelZoom
+    }
     private var activePage: BrowserPage? {
         if let session = privateWindows.activeSession { return session.selectedPage }
         return activeModel.state.selectedTabID.flatMap { activeModel.page(for: $0) }
@@ -110,13 +115,15 @@ struct BrowserApplicationCommands: Commands {
                     else { activeModel.showFind = true }
                 }.keyboardShortcut("f").disabled(activePage == nil)
                 Button("Zoom In") {
-                    if let page = activePage { page.webView.pageZoom = min(3, page.webView.pageZoom + 0.1) }
+                    if let zoom = easelZoom { zoom(1) }
+                    else if let page = activePage { page.webView.pageZoom = min(3, page.webView.pageZoom + 0.1) }
                 }.keyboardShortcut("+")
                 Button("Zoom Out") {
-                    if let page = activePage { page.webView.pageZoom = max(0.25, page.webView.pageZoom - 0.1) }
+                    if let zoom = easelZoom { zoom(-1) }
+                    else if let page = activePage { page.webView.pageZoom = max(0.25, page.webView.pageZoom - 0.1) }
                 }.keyboardShortcut("-")
                 Button("Actual Size") {
-                    activePage?.webView.pageZoom = 1
+                    if let zoom = easelZoom { zoom(0) } else { activePage?.webView.pageZoom = 1 }
                 }.keyboardShortcut("0")
             }
             }
