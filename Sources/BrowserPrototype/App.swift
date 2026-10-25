@@ -44,7 +44,7 @@ struct BrowserPrototypeApp: App {
         let forcedStep = value("--onboarding-step").flatMap(OnboardingStep.init(rawValue:))
         if !isSmoke, value("--import-from") == nil,
            forcedStep != nil || OnboardingFlow.shouldShow(firstLaunch: browserModel.isFirstLaunch, settings: browserModel.settings.state) {
-            browserModel.showPremiere(resumeAt: forcedStep ?? browserModel.settings.state.onboardingStep)
+            browserModel.showPremiere(resumeAt: forcedStep ?? browserModel.settings.state.onboardingStep, quiet: forcedStep != nil)
         }
         _model = StateObject(wrappedValue: browserModel)
         windowLifecycleOutput = value("--window-lifecycle-output").map { URL(fileURLWithPath: $0) }

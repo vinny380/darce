@@ -63,7 +63,7 @@ final class PremiereModel: ObservableObject {
         tint = Self.defaultTint
         mode = browserModel.appearance.state.appearance
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-        let quiet = browserModel.settings.state.premiereMuted || reduceMotion
+        let quiet = browserModel.settings.state.premiereMuted || reduceMotion || !music
         muted = quiet
         self.music = music ? PremiereMusic(muted: quiet) : nil
         if let first = arcTints.first { tint = first }

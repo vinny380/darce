@@ -16,10 +16,11 @@ extension BrowserModel {
     }
 
     /// Shows the welcome (first launch, resuming, or Help → Show Welcome).
-    func showPremiere(resumeAt: OnboardingStep? = nil) {
+    /// `quiet` keeps the music off (screenshot runs).
+    func showPremiere(resumeAt: OnboardingStep? = nil, quiet: Bool = false) {
         guard premiere == nil else { return }
         let premiere = PremiereModel(browserModel: self, installed: ImportSources.installed(home: FileManager.default.homeDirectoryForCurrentUser),
-                                     isDefaultBrowser: Self.isDefaultBrowser, resumeAt: resumeAt)
+                                     isDefaultBrowser: Self.isDefaultBrowser, resumeAt: resumeAt, music: !quiet)
         premiere.onFinish = { [weak self] in
             withAnimation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.45)) { self?.premiere = nil }
         }
