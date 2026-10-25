@@ -241,20 +241,31 @@ struct PremiereIntro: View {
 
 struct PremiereBring: View {
     @ObservedObject var model: PremiereModel
-    @State private var choosing = false
+    /// The list of what comes over, folded away until someone wants to choose.
+    @State private var open = false
+    @State private var choosingExtensions = false
+
+    private var showsList: Bool { open || model.importing || model.imported }
 
     var body: some View {
         HStack(alignment: .center, spacing: 56) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 0) {
                 StepTitle(text: model.bringTitle).rise(0)
-                StepSubtitle(text: "Spaces, tabs and sign-ins, right where you left them. Nothing leaves this Mac.").rise(1)
-                rows.rise(2)
-                actions.rise(3)
+                summary.padding(.top, 12).rise(1)
+                if showsList, !model.nothingToImport, model.profiles != nil {
+                    list.padding(.top, 22)
+                }
+                actions.padding(.top, 24).rise(2)
+                if !showsList, !model.nothingToImport, model.profiles != nil {
+                    Caption(text: model.isOn(.cookies) && model.availableRows.contains(.cookies)
+                            ? "Nothing leaves this Mac. macOS asks for your password once, for sign-ins." : "Nothing leaves this Mac.")
+                        .padding(.top, 14).rise(3)
+                }
                 if model.installed.count > 1, !model.importing, !model.imported {
                     Menu {
                         ForEach(model.installed, id: \.self) { browser in Button(browser.displayName) { model.choose(browser) } }
                     } label: { Text("Import from another browser").font(.system(size: 12.5)) }
-                    .menuStyle(.borderlessButton).fixedSize().opacity(0.6).rise(4)
+                    .menuStyle(.borderlessButton).fixedSize().opacity(0.6).padding(.top, 14).rise(4)
                 }
             }
             .frame(maxWidth: 440, alignment: .leading)
@@ -263,90 +274,153 @@ struct PremiereBring: View {
         .frame(maxWidth: 900)
     }
 
-    @ViewBuilder private var rows: some View {
+    @ViewBuilder private var summary: some View {
         if model.nothingToImport {
             Text(model.readError ?? "\(model.browser?.shortName ?? "That browser") has nothing D’arce can bring over yet.")
-                .font(.system(size: 14.5)).foregroundStyle(Color.white.opacity(0.7)).padding(.vertical, 8)
+                .font(.system(size: 15)).foregroundStyle(Color.white.opacity(0.7))
         } else if model.profiles == nil {
             HStack(spacing: 10) { ProgressView().controlSize(.small); Text("Looking at \(model.browser?.shortName ?? "your browser")…").opacity(0.7) }
-                .font(.system(size: 15)).padding(.vertical, 8)
+                .font(.system(size: 15))
         } else {
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(model.availableRows, id: \.self) { row in
-                    ImportRow(model: model, row: row)
-                    if row == .cookies, model.isOn(.cookies), !model.imported {
-                        Text("macOS asks for your password once to read these.")
-                            .font(.system(size: 12.5)).foregroundStyle(Color.white.opacity(0.55)).padding(.leading, 52).padding(.bottom, 4)
-                    }
-                    if row == .extensions, choosing, !model.importing, !model.imported {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(model.extensions, id: \.id) { item in
-                                Toggle(item.name, isOn: Binding(get: { !model.options.excludedExtensionIDs.contains(item.id) },
-                                                                set: { if $0 { model.options.excludedExtensionIDs.remove(item.id) }
-                                                                       else { model.options.excludedExtensionIDs.insert(item.id) } }))
-                                    .toggleStyle(.checkbox).font(.system(size: 13))
-                            }
-                        }
-                        .padding(.leading, 52).padding(.bottom, 6)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                }
-                if model.availableRows.contains(.extensions), !model.importing, !model.imported {
-                    Button(choosing ? "Done choosing" : "Choose extensions…") {
-                        withAnimation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.3)) { choosing.toggle() }
-                    }
-                    .buttonStyle(LinkButtonStyle()).padding(.leading, 46)
-                }
-                ForEach(model.problems.prefix(3), id: \.self) { problem in
-                    Text(problem).font(.system(size: 12.5)).foregroundStyle(Color.white.opacity(0.55)).lineLimit(1)
+            Text(model.bringSummary)
+                .font(.system(size: 18, weight: .medium)).foregroundStyle(Color.white.opacity(0.55))
+                .lineSpacing(3).frame(maxWidth: 400, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+                .contentTransition(.opacity)
+                .animation(.easeOut(duration: 0.18), value: model.bringSummary)
+        }
+    }
+
+    private var list: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(model.availableRows.enumerated()), id: \.element) { index, row in
+                ImportRow(model: model, row: row)
+                    .transition(.asymmetric(
+                        insertion: .modifier(active: RowPhase(y: 6, blur: 4, opacity: 0), identity: RowPhase(y: 0, blur: 0, opacity: 1))
+                            .animation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.36).delay(0.05 + Double(index) * 0.04)),
+                        removal: .opacity.animation(.easeOut(duration: 0.14))))
+                if row == .extensions, !model.importing, !model.imported {
+                    extensionsPicker
                 }
             }
+            ForEach(model.problems.prefix(3), id: \.self) { problem in
+                Text(problem).font(.system(size: 12.5)).foregroundStyle(Color.white.opacity(0.55)).lineLimit(1).padding(.leading, 52)
+            }
+        }
+        .frame(maxWidth: 380, alignment: .leading)
+    }
+
+    @ViewBuilder private var extensionsPicker: some View {
+        if choosingExtensions {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(model.extensions, id: \.id) { item in
+                    Toggle(item.name, isOn: Binding(get: { !model.options.excludedExtensionIDs.contains(item.id) },
+                                                    set: { if $0 { model.options.excludedExtensionIDs.remove(item.id) }
+                                                           else { model.options.excludedExtensionIDs.insert(item.id) } }))
+                        .toggleStyle(.checkbox).font(.system(size: 13))
+                }
+            }
+            .padding(.leading, 52).padding(.bottom, 4)
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+        if model.isOn(.extensions) {
+            Button(choosingExtensions ? "Done choosing" : "Choose extensions…") {
+                withAnimation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.3)) { choosingExtensions.toggle() }
+            }
+            .buttonStyle(LinkButtonStyle()).font(.system(size: 12.5)).padding(.leading, 46)
         }
     }
 
     @ViewBuilder private var actions: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 18) {
             if model.imported {
                 Button("Continue", action: model.next).buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
-            } else if model.nothingToImport {
+            } else if model.nothingToImport || (model.profiles != nil && !model.availableRows.contains(where: model.isOn)) {
                 Button("Start fresh", action: model.startFresh).buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
+                if open { chooseLink }
             } else {
                 Button(model.importing ? "Bringing it over…" : "Bring it over", action: model.runImport)
                     .buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
                     .disabled(model.importing || model.profiles == nil)
-                if !model.importing { Button("Start fresh", action: model.startFresh).buttonStyle(LinkButtonStyle()) }
+                if !model.importing, model.profiles != nil { chooseLink }
             }
         }
-        .padding(.top, 4)
+    }
+
+    private var chooseLink: some View {
+        Button(open ? "Done" : "Choose what comes over") {
+            withAnimation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.42)) { open.toggle() }
+        }
+        .buttonStyle(LinkButtonStyle())
     }
 }
 
-/// A switch before the import; a check that draws itself once that part has come over.
+/// Rows rise into the list: a little lift, a little blur.
+struct RowPhase: ViewModifier {
+    var y: CGFloat, blur: CGFloat, opacity: Double
+    func body(content: Content) -> some View { content.offset(y: y).blur(radius: blur).opacity(opacity) }
+}
+
+/// One kind of thing that can come over: its icon, its name with the count underneath, and a check. Tapping the
+/// row leaves it out; once the import runs, the check shows how that part went.
 struct ImportRow: View {
     @ObservedObject var model: PremiereModel
     var row: PremiereModel.Row
     @State private var hovering = false
 
-    var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                if model.importing || model.imported {
-                    Tick(state: model.state(row))
-                } else {
-                    Toggle("", isOn: Binding(get: { model.isOn(row) }, set: { model.setOn(row, $0) }))
-                        .toggleStyle(.switch).controlSize(.mini).labelsHidden()
-                }
-            }
-            .frame(width: 34, alignment: .leading)
-            Text(model.title(row)).font(.system(size: 15)).opacity(model.isOn(row) ? 1 : 0.5)
-            Spacer(minLength: 12)
-            Text(model.detail(row)).font(.system(size: 15)).monospacedDigit().foregroundStyle(Color.white.opacity(0.5))
+    private var symbol: String {
+        switch row {
+        case .spaces: "square.on.square"
+        case .favorites: "star"
+        case .bookmarks: "book"
+        case .history: "clock"
+        case .cookies: "key"
+        case .extensions: "puzzlepiece.extension"
         }
-        .padding(.vertical, 8).padding(.horizontal, 10)
-        .background(Color.white.opacity(hovering ? 0.05 : 0), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    var body: some View {
+        let on = model.isOn(row), running = model.importing || model.imported
+        Button { model.setOn(row, !on) } label: {
+            HStack(spacing: 12) {
+                Image(systemName: symbol).font(.system(size: 13, weight: .medium))
+                    .frame(width: 30, height: 30)
+                    .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(model.title(row)).font(.system(size: 15, weight: .medium))
+                    Text(model.detail(row)).font(.system(size: 12)).monospacedDigit().foregroundStyle(Color.white.opacity(0.55))
+                }
+                Spacer(minLength: 12)
+                if running { Tick(state: model.state(row)) } else { Check(on: on) }
+            }
+            .opacity(on || running ? 1 : 0.4)
+            .padding(.vertical, 6).padding(.horizontal, 8)
+            .background(Color.white.opacity(hovering && !running ? 0.05 : 0), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressScale())
+        .disabled(running)
         .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.18), value: on)
         .animation(.easeOut(duration: 0.2), value: hovering)
-        .accessibilityElement(children: .combine)
+        .accessibilityLabel(model.title(row))
+        .accessibilityValue(running ? "" : on ? "Coming over" : "Left out")
+        .accessibilityHint(model.detail(row))
+    }
+}
+
+/// A soft white check: filled when it's coming, an empty ring when it's left out.
+struct Check: View {
+    var on: Bool
+    var body: some View {
+        ZStack {
+            Circle().strokeBorder(Color.white.opacity(on ? 0 : 0.4), lineWidth: 1.5)
+            Circle().fill(.white).scaleEffect(on ? 1 : 0.5).opacity(on ? 1 : 0)
+            CheckShape().trim(from: 0, to: on ? 1 : 0)
+                .stroke(Color(red: 0.23, green: 0.14, blue: 0.28), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
+                .frame(width: 9, height: 9)
+        }
+        .frame(width: 20, height: 20)
+        .animation(.spring(response: 0.32, dampingFraction: 0.75), value: on)
     }
 }
 
@@ -451,9 +525,9 @@ struct PremiereTheme: View {
                 VStack(alignment: .leading, spacing: 12) {
                     if !model.arcTints.isEmpty {
                         Caption(text: "From your Arc")
-                        swatches(model.arcTints).padding(.bottom, 6)
+                        swatches(model.arcTints, names: model.arcTints.indices.map { "Your Arc color \($0 + 1)" }).padding(.bottom, 6)
                     }
-                    swatches(PremiereModel.curatedTints)
+                    swatches(PremiereModel.curatedTints, names: PremiereModel.curatedNames)
                 }.rise(2)
                 appearance.rise(3)
                 HStack(spacing: 14) {
@@ -467,9 +541,9 @@ struct PremiereTheme: View {
         .frame(maxWidth: 900)
     }
 
-    private func swatches(_ colors: [AppearanceColor]) -> some View {
+    private func swatches(_ colors: [AppearanceColor], names: [String]) -> some View {
         HStack(spacing: 14) {
-            ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
+            ForEach(Array(colors.enumerated()), id: \.offset) { index, color in
                 let selected = color == model.tint
                 Button { model.pick(color) } label: {
                     Circle()
@@ -482,7 +556,8 @@ struct PremiereTheme: View {
                         .animation(.spring(response: 0.35, dampingFraction: 0.7), value: selected)
                 }
                 .buttonStyle(PressScale())
-                .accessibilityLabel(selected ? "Selected color" : "Color")
+                .accessibilityLabel(names[index])
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
     }

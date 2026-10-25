@@ -53,6 +53,8 @@ final class PremiereModel: ObservableObject {
         AppearanceColor(red: 0.29, green: 0.47, blue: 0.77), AppearanceColor(red: 0.73, green: 0.63, blue: 0.29),
         AppearanceColor(red: 0.54, green: 0.56, blue: 0.62),
     ]
+    /// What VoiceOver says for each curated swatch.
+    static let curatedNames = ["Green", "Ember", "Blue", "Gold", "Graphite"]
 
     init(browserModel: BrowserModel, installed: [ImportBrowser], isDefaultBrowser: Bool, resumeAt: OnboardingStep? = nil,
          prefetched: [ImportedProfile]? = nil, music: Bool = true) {
@@ -139,13 +141,51 @@ final class PremiereModel: ObservableObject {
         case .spaces:
             let spaces = all.reduce(0) { $0 + $1.spaces.count }
             let tabs = all.reduce(0) { $0 + $1.spaces.reduce(0) { $0 + count($1.pinned) + count($1.today) } }
-            return "\(spaces) \(spaces == 1 ? "Space" : "Spaces") · \(number(tabs)) tabs"
-        case .favorites: return number(all.reduce(0) { $0 + $1.favorites.count })
+            return "\(spaces) \(spaces == 1 ? "Space" : "Spaces"), \(number(tabs)) tabs"
+        case .favorites: return "\(number(all.reduce(0) { $0 + $1.favorites.count })) sites"
         case .bookmarks: return number(all.reduce(0) { $0 + count($1.bookmarks) })
         case .history: return "\(number(all.reduce(0) { $0 + $1.history.count })) sites"
-        case .cookies: return "\(number(all.reduce(0) { $0 + $1.cookieCount })) cookies"
-        case .extensions: return number(extensions.filter { !options.excludedExtensionIDs.contains($0.id) }.count)
+        case .cookies: return imported ? "\(number(all.reduce(0) { $0 + $1.cookieCount })) cookies" : "macOS asks for your password once"
+        case .extensions:
+            let kept = extensions.filter { !options.excludedExtensionIDs.contains($0.id) }.count
+            return kept == extensions.count ? "\(kept) found" : "\(kept) of \(extensions.count)"
         }
+    }
+
+    /// The Bring step's one sentence: exactly what's ticked, numbers in white, the words between them dimmer.
+    var bringSummary: AttributedString {
+        let all = profiles ?? []
+        let number = { (value: Int) in value.formatted(.number) }
+        let plural = { (value: Int, one: String, many: String) in "\(number(value)) \(value == 1 ? one : many)" }
+        func strong(_ text: String) -> AttributedString {
+            var run = AttributedString(text)
+            run.foregroundColor = .white
+            run.font = .system(size: 18, weight: .semibold)
+            return run
+        }
+        var phrases: [AttributedString] = []
+        for row in availableRows where isOn(row) {
+            switch row {
+            case .spaces:
+                let spaces = all.reduce(0) { $0 + $1.spaces.count }
+                let tabs = all.reduce(0) { $0 + $1.spaces.reduce(0) { $0 + count($1.pinned) + count($1.today) } }
+                phrases.append(strong(plural(spaces, "Space", "Spaces")) + AttributedString(" with ") + strong(plural(tabs, "tab", "tabs")))
+            case .favorites: phrases.append(strong(plural(all.reduce(0) { $0 + $1.favorites.count }, "Favorite", "Favorites")))
+            case .bookmarks: phrases.append(strong(plural(all.reduce(0) { $0 + count($1.bookmarks) }, "bookmark", "bookmarks")))
+            case .history: phrases.append(strong(plural(all.reduce(0) { $0 + $1.history.count }, "site", "sites")) + AttributedString(" you’ve visited"))
+            case .cookies: phrases.append(AttributedString("your sign-ins"))
+            case .extensions:
+                let kept = extensions.filter { !options.excludedExtensionIDs.contains($0.id) }.count
+                if kept > 0 { phrases.append(strong(plural(kept, "extension", "extensions"))) }
+            }
+        }
+        guard !phrases.isEmpty else { return AttributedString("Nothing selected. You’ll start with a clean slate.") }
+        var sentence = AttributedString()
+        for (index, phrase) in phrases.enumerated() {
+            if index > 0 { sentence += AttributedString(index == phrases.count - 1 ? " and " : ", ") }
+            sentence += phrase
+        }
+        return sentence + AttributedString(".")
     }
 
     func isOn(_ row: Row) -> Bool {

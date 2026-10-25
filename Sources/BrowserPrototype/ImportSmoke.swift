@@ -300,3 +300,31 @@ func runPremiereMeshSmoke() -> [String: Bool] {
         "premiere_mesh_renders_a_gradient": varied,
     ]
 }
+
+/// "Bring your Arc." is one sentence that says exactly what's coming, and rewrites itself as rows are unticked.
+@MainActor
+func runPremiereBringSmoke() -> [String: Bool] {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("darce-premiere-bring-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let browser = BrowserModel(directory: directory, ephemeralWebsiteData: true)
+    var arc = ImportedProfile(key: "arc:Default", name: "Default", directory: nil)
+    arc.spaces = [ImportedSpace(key: "s1", name: "Reads", pinned: [.tab(key: "t1", title: "A", url: URL(string: "https://a.example/")!),
+                                                                 .tab(key: "t2", title: "B", url: URL(string: "https://b.example/")!)]),
+                  ImportedSpace(key: "s2", name: "Work")]
+    arc.favorites = [.tab(key: "f", title: "Mail", url: URL(string: "https://mail.google.com/")!)]
+    arc.history = (0..<1_200).map { ImportedVisit(url: URL(string: "https://h.example/\($0)")!, title: "\($0)", visitedAt: Date()) }
+    arc.cookieCount = 40
+    let model = PremiereModel(browserModel: browser, installed: [.arc], isDefaultBrowser: true, prefetched: [arc], music: false)
+    let all = String(model.bringSummary.characters)
+    model.setOn(.history, false)
+    let withoutHistory = String(model.bringSummary.characters)
+    model.setOn(.cookies, false); model.setOn(.favorites, false)
+    let one = String(model.bringSummary.characters)
+    model.setOn(.spaces, false)
+    let none = String(model.bringSummary.characters)
+    return [
+        "premiere_bring_summary_reads_as_a_sentence": all == "2 Spaces with 2 tabs, 1 Favorite, \(1_200.formatted(.number)) sites you’ve visited and your sign-ins.",
+        "premiere_bring_summary_follows_the_ticks": withoutHistory == "2 Spaces with 2 tabs, 1 Favorite and your sign-ins." && one == "2 Spaces with 2 tabs.",
+        "premiere_bring_summary_when_nothing_is_ticked": none == "Nothing selected. You’ll start with a clean slate.",
+    ]
+}
