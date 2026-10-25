@@ -42,7 +42,9 @@ struct BrowserPrototypeApp: App {
         // The welcome is decided before the first frame, so the empty browser never flashes underneath it.
         // `--onboarding-step <step>` forces it at a step (for screenshots).
         let forcedStep = value("--onboarding-step").flatMap(OnboardingStep.init(rawValue:))
-        if !isSmoke, value("--import-from") == nil,
+        if let demo = value("--premiere-demo") {
+            PremiereDemo.play(browserModel, directory: URL(fileURLWithPath: demo, isDirectory: true))
+        } else if !isSmoke, value("--import-from") == nil,
            forcedStep != nil || OnboardingFlow.shouldShow(firstLaunch: browserModel.isFirstLaunch, settings: browserModel.settings.state) {
             browserModel.showPremiere(resumeAt: forcedStep ?? browserModel.settings.state.onboardingStep, quiet: forcedStep != nil)
         }
