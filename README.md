@@ -80,6 +80,14 @@
 
 > Requires an **Apple Silicon Mac** running **macOS 14** or later.
 
+With [Homebrew](https://brew.sh):
+
+```sh
+brew install --cask vinny380/tap/darce
+```
+
+Or by hand:
+
 1. Download the latest `.dmg` from **[Releases](../../releases/latest)**.
 2. Open it and drag **D'arce** into **Applications**.
 3. Launch it.
