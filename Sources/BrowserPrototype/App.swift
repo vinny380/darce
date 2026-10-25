@@ -19,6 +19,11 @@ struct BrowserPrototypeApp: App {
             guard let index = arguments.firstIndex(of: key), arguments.indices.contains(index + 1) else { return nil }
             return arguments[index + 1]
         }
+        // Debug: write the welcome's score to a file to listen to it, then quit.
+        if let path = value("--render-premiere-music") {
+            _ = try? PremiereMusic.renderOffline(seconds: 40, to: URL(fileURLWithPath: path))
+            exit(0)
+        }
         // Owned verification bundles remain isolated when a UI tool relaunches them without CLI arguments.
         let verificationDirectory = (Bundle.main.object(forInfoDictionaryKey: "BrowserVerificationDataDirectory") as? String)
             .map { URL(fileURLWithPath: $0, isDirectory: true) }

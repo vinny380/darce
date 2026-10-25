@@ -170,3 +170,10 @@ func runSafariExtensionSmoke() async -> [String: Bool] {
         && FileManager.default.fileExists(atPath: appex.appendingPathComponent("Resources/manifest.json").path)
     return ["safari_extension_turns_on_in_place": on && manager.lastError == nil, "safari_extension_turns_off_without_touching_app": off]
 }
+
+/// The welcome's generated score: audible, but never louder than −18 dBFS.
+@MainActor
+func runPremiereMusicSmoke() -> [String: Bool] {
+    guard let level = try? PremiereMusic.renderOffline(seconds: 6) else { return ["premiere_music_renders_quietly_and_audibly": false] }
+    return ["premiere_music_renders_quietly_and_audibly": level.peakDBFS <= -18 && level.rmsDBFS > -50]
+}
