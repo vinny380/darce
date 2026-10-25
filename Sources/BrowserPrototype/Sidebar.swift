@@ -305,7 +305,7 @@ struct BrowserSidebar: View {
     }
 
     private func favoritesGrid(_ tabs: [BrowserTab]) -> some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 3), spacing: 7) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: min(max(tabs.count, 1), 3)), spacing: 7) {
             ForEach(tabs) { tab in
                 SiteIcon(controller: model.favicons, url: tab.url, saved: model.state.savedFaviconPNG(forTab: tab.id),
                          profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 24)
