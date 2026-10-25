@@ -124,6 +124,7 @@ extension View {
 struct PremiereBackground: View {
     var tint: AppearanceColor
     var orb: Double
+    @State private var turning = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private func color(_ scale: Double) -> Color {
@@ -134,18 +135,20 @@ struct PremiereBackground: View {
         ZStack {
             RadialGradient(colors: [color(1), color(0.36), color(0.13)], center: UnitPoint(x: 0.28, y: 0.18),
                            startRadius: 0, endRadius: 980)
-            TimelineView(.animation(paused: reduceMotion)) { context in
-                let turn = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 14) / 14
-                Circle()
-                    .fill(AngularGradient(colors: [Color(red: 0.71, green: 0.55, blue: 1), Color(red: 1, green: 0.56, blue: 0.69),
-                                                   Color(red: 1, green: 0.82, blue: 0.54), Color(red: 0.56, green: 0.84, blue: 1),
-                                                   Color(red: 0.71, green: 0.55, blue: 1)], center: .center))
-                    .frame(width: 520, height: 520)
-                    .rotationEffect(.degrees(turn * 360))
-                    .blur(radius: 60)
-                    .opacity(orb)
-            }
-            .accessibilityHidden(true)
+            // One long rotation the render server runs on its own, so the import's main-thread work can't stutter it.
+            Circle()
+                .fill(AngularGradient(colors: [Color(red: 0.71, green: 0.55, blue: 1), Color(red: 1, green: 0.56, blue: 0.69),
+                                               Color(red: 1, green: 0.82, blue: 0.54), Color(red: 0.56, green: 0.84, blue: 1),
+                                               Color(red: 0.71, green: 0.55, blue: 1)], center: .center))
+                .frame(width: 520, height: 520)
+                .rotationEffect(.degrees(turning ? 360 : 0))
+                .blur(radius: 60)
+                .opacity(orb)
+                .onAppear {
+                    guard !reduceMotion else { return }
+                    withAnimation(.linear(duration: 14).repeatForever(autoreverses: false)) { turning = true }
+                }
+                .accessibilityHidden(true)
         }
         .animation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.6), value: tint)
         .animation(.easeOut(duration: 0.8), value: orb)
@@ -290,7 +293,10 @@ struct PremiereBring: View {
     }
 
     @ViewBuilder private var rows: some View {
-        if model.profiles == nil {
+        if model.nothingToImport {
+            Text(model.readError ?? "\(model.browser?.shortName ?? "That browser") has nothing D'arce can bring over yet.")
+                .font(.system(size: 14.5)).foregroundStyle(Color.white.opacity(0.7)).padding(.vertical, 8)
+        } else if model.profiles == nil {
             HStack(spacing: 10) { ProgressView().controlSize(.small); Text("Looking at \(model.browser?.shortName ?? "your browser")…").opacity(0.7) }
                 .font(.system(size: 14.5)).padding(.vertical, 8)
         } else {
@@ -331,6 +337,8 @@ struct PremiereBring: View {
         HStack(spacing: 14) {
             if model.imported {
                 Button("Continue", action: model.next).buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
+            } else if model.nothingToImport {
+                Button("Start fresh", action: model.startFresh).buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
             } else {
                 Button(model.importing ? "Bringing it over…" : "Bring it all over", action: model.runImport)
                     .buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)

@@ -235,3 +235,38 @@ func runPremiereLifecycleSmoke() -> [String: Bool] {
         "first_archive_toast_once": firstToast && browser.toast == nil,
     ]
 }
+
+/// The real engine path renders on a background thread (as the audio thread does) without tripping actor checks.
+@MainActor
+func runPremiereEngineSmoke() async -> [String: Bool] {
+    let rendered = await Task.detached { PremiereMusic.renderThroughEngineOffline(frames: 4_096) }.value
+    return ["premiere_engine_renders_off_main_thread": rendered]
+}
+
+/// Review fixes: the color is only written when picked; late-import notes are honest; an empty read offers Start fresh.
+@MainActor
+func runPremiereReviewSmoke() -> [String: Bool] {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("darce-premiere-review-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let browser = BrowserModel(directory: directory, ephemeralWebsiteData: true)
+    let space = browser.state.selectedSpaceID
+    let before = browser.appearance.state.space(space).tint
+    let replay = PremiereModel(browserModel: browser, installed: [], isDefaultBrowser: true, prefetched: [], music: false)
+    replay.skipSetup()
+    let tintKept = browser.appearance.state.space(space).tint == before
+    var failed = ImportOutcome()
+    failed.saved = false
+    failed.skipped = ["Nothing could be saved."]
+    let failedNote = PremiereModel.lateImportNote(failed, browser: .chrome)
+    var partial = ImportOutcome()
+    partial.counts = ["spaces": 2, "tabs": 1, "favorites": 0, "folders": 0, "bookmarks": 0, "history": 300]
+    partial.skipped = ["one"]
+    let partialNote = PremiereModel.lateImportNote(partial, browser: .arc)
+    let empty = PremiereModel(browserModel: browser, installed: [.chrome], isDefaultBrowser: false, prefetched: [], music: false)
+    return [
+        "premiere_tint_only_written_when_picked": tintKept,
+        "premiere_late_import_note_is_honest": failedNote.title == "Your Chrome didn't come over" && failedNote.message == "Nothing could be saved."
+            && partialNote.message == "2 Spaces, 1 tab and 300 history sites came over. 1 thing didn't come over.",
+        "premiere_nothing_to_import_offers_start_fresh": empty.nothingToImport,
+    ]
+}

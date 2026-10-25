@@ -28,20 +28,42 @@ final class PremiereMusic {
     func start() {
         guard engine == nil else { return }
         let engine = AVAudioEngine()
-        let synth = synth
-        let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
-        let source = AVAudioSourceNode(format: format) { _, _, frameCount, buffers -> OSStatus in
+        // No usable output (a headless Mac): touching the mixer would raise an exception Swift can't catch.
+        let output = engine.outputNode.outputFormat(forBus: 0)
+        guard output.channelCount > 0, output.sampleRate > 0 else { return }
+        let source = Self.makeSource(synth)
+        engine.attach(source)
+        engine.connect(source, to: engine.mainMixerNode, format: Self.format)
+        do { try engine.start() } catch { return }   // no output device: stay silent, never block the welcome
+        self.engine = engine
+        synth.fadeIn(seconds: 2)
+    }
+
+    private nonisolated static let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
+
+    /// The render callback runs on the audio thread, so it's built outside the main actor and is `@Sendable`;
+    /// otherwise Swift's actor check would stop the app on the first buffer.
+    private nonisolated static func makeSource(_ synth: LofiSynth) -> AVAudioSourceNode {
+        AVAudioSourceNode(format: format) { @Sendable _, _, frameCount, buffers -> OSStatus in
             let list = UnsafeMutableAudioBufferListPointer(buffers)
             guard list.count >= 2, let left = list[0].mData?.assumingMemoryBound(to: Float.self),
                   let right = list[1].mData?.assumingMemoryBound(to: Float.self) else { return noErr }
             synth.render(left: left, right: right, frames: Int(frameCount))
             return noErr
         }
+    }
+
+    /// The real engine path, rendered offline and called from a background thread (smoke check).
+    nonisolated static func renderThroughEngineOffline(frames: Int) -> Bool {
+        let engine = AVAudioEngine()
+        let source = makeSource(LofiSynth(sampleRate: 44_100))
         engine.attach(source)
         engine.connect(source, to: engine.mainMixerNode, format: format)
-        do { try engine.start() } catch { return }   // no output device: stay silent, never block the welcome
-        self.engine = engine
-        synth.fadeIn(seconds: 2)
+        guard (try? engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: AVAudioFrameCount(frames))) != nil,
+              (try? engine.start()) != nil,
+              let buffer = AVAudioPCMBuffer(pcmFormat: engine.manualRenderingFormat, frameCapacity: AVAudioFrameCount(frames)) else { return false }
+        defer { engine.stop() }
+        return (try? engine.renderOffline(AVAudioFrameCount(frames), to: buffer)) == .success
     }
 
     func cue(_ cue: Cue) { synth.enqueue(cue) }

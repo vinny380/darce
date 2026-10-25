@@ -34,7 +34,10 @@ final class PremiereModel: ObservableObject {
     @Published private(set) var imported = false
     @Published private(set) var outcome: ImportOutcome?
     @Published var tint: AppearanceColor
-    @Published var mode: BrowserAppearance
+    @Published var mode: BrowserAppearance { didSet { modePicked = true } }
+    /// Only what the person actually chose is written (a replayed welcome mustn't recolor a Space).
+    private var tintPicked = false, modePicked = false
+    @Published private(set) var readError: String?
     @Published private(set) var defaultState = DefaultState.idle
     @Published private(set) var muted: Bool
     @Published var finishing = false
@@ -70,6 +73,9 @@ final class PremiereModel: ObservableObject {
     }
 
     // MARK: Words that depend on what was found
+
+    /// The browser was found but had nothing D'arce can bring over (or couldn't be read).
+    var nothingToImport: Bool { profiles != nil && availableRows.isEmpty }
 
     var bringTitle: String { "Bring your \(browser?.shortName ?? "browser") with you." }
     var arcTints: [AppearanceColor] {
@@ -217,7 +223,7 @@ final class PremiereModel: ObservableObject {
 
     /// "Skip setup": straight to the browser, letting a running import finish on its own.
     func skipSetup() {
-        music?.stop(fade: 0.6)
+        music?.stop(fade: 0)
         finish(resolve: false)
     }
 
@@ -225,12 +231,14 @@ final class PremiereModel: ObservableObject {
         guard !finishing else { return }
         finishing = true
         if resolve { music?.cue(.resolve); music?.stop(fade: 3) }
-        if browserModel.state.spaces.contains(where: { $0.id == browserModel.state.selectedSpaceID }) {
+        if (tintPicked || modePicked), browserModel.state.spaces.contains(where: { $0.id == browserModel.state.selectedSpaceID }) {
             _ = browserModel.appearance.update { prefs in
-                var looks = prefs.space(browserModel.state.selectedSpaceID)
-                looks.tint = tint
-                prefs.spaces[browserModel.state.selectedSpaceID] = looks
-                prefs.appearance = mode
+                if tintPicked {
+                    var looks = prefs.space(browserModel.state.selectedSpaceID)
+                    looks.tint = tint
+                    prefs.spaces[browserModel.state.selectedSpaceID] = looks
+                }
+                if modePicked { prefs.appearance = mode }
             }
         }
         _ = browserModel.settings.update { $0.onboardingCompleted = true; $0.onboardingStep = nil }
@@ -250,6 +258,9 @@ final class PremiereModel: ObservableObject {
 
     func appeared() {
         music?.start()
+        // Resumed partway: bring back the layers the earlier steps added.
+        if (flow.steps.firstIndex(of: flow.current) ?? 0) > (flow.steps.firstIndex(of: .bring) ?? 99) || flow.current == .bring { music?.cue(.addBass) }
+        if flow.current == .defaultBrowser || flow.current == .welcome { music?.cue(.addShuffle) }
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(1_450))
             self?.music?.cue(.bloom)
@@ -268,9 +279,14 @@ final class PremiereModel: ObservableObject {
     private func read(_ browser: ImportBrowser) {
         let home = FileManager.default.homeDirectoryForCurrentUser
         Task { @MainActor [weak self] in
-            let found = (try? await Task.detached { try ImportSources.read(browser, home: home) }.value) ?? []
+            let result: Result<[ImportedProfile], Error> = await Task.detached {
+                Result { try ImportSources.read(browser, home: home) }
+            }.value
             guard let self, self.browser == browser else { return }
-            self.profiles = found
+            switch result {
+            case .success(let found): self.profiles = found; self.readError = nil
+            case .failure(let error): self.profiles = []; self.readError = "Couldn't read \(browser.shortName): \(error.localizedDescription)"
+            }
             if let first = self.arcTints.first { self.tint = first }
         }
     }
@@ -306,14 +322,8 @@ final class PremiereModel: ObservableObject {
             self.outcome = outcome
             importing = false
             imported = true
-            // Skipped ahead while this ran: say how it went once it lands, so nothing is lost silently.
-            if finishing {
-                let parts = [("spaces", "Spaces"), ("tabs", "tabs"), ("favorites", "Favorites"), ("bookmarks", "bookmarks")]
-                    .compactMap { key, name in outcome.counts[key].flatMap { $0 > 0 ? "\($0) \(name)" : nil } }
-                let note = outcome.skipped.isEmpty ? "" : " \(outcome.skipped.count) things didn't come over."
-                browserModel.toast = BrowserToast(title: "Your \(browser.shortName) is in",
-                                                  message: (parts.isEmpty ? "Everything came over." : parts.joined(separator: ", ") + " came over.") + note)
-            }
+            // Moved on while this ran: say how it went once it lands, so nothing is lost silently.
+            if finishing || flow.current != .bring { browserModel.toast = Self.lateImportNote(outcome, browser: browser) }
             if let first = self.arcTints.first, self.tint == Self.defaultTint { self.tint = first }
         }
     }
@@ -323,7 +333,28 @@ final class PremiereModel: ObservableObject {
         next()
     }
 
+    /// What a finished import says when the person has already moved on.
+    static func lateImportNote(_ outcome: ImportOutcome, browser: ImportBrowser) -> BrowserToast {
+        guard outcome.saved else {
+            return BrowserToast(title: "Your \(browser.shortName) didn't come over", message: outcome.skipped.first ?? "It couldn't be saved.")
+        }
+        let names: [(String, String, String)] = [("spaces", "Space", "Spaces"), ("tabs", "tab", "tabs"), ("favorites", "Favorite", "Favorites"),
+                                                 ("bookmarks", "bookmark", "bookmarks"), ("history", "history site", "history sites"),
+                                                 ("cookies", "cookie", "cookies"), ("extensions", "extension", "extensions")]
+        let parts = names.compactMap { key, one, many -> String? in
+            guard let count = outcome.counts[key], count > 0 else { return nil }
+            return "\(count.formatted(.number)) \(count == 1 ? one : many)"
+        }
+        var message = parts.isEmpty ? "Nothing new came over." : (parts.count == 1 ? parts[0]
+            : parts.dropLast().joined(separator: ", ") + " and " + parts.last!) + " came over."
+        if !outcome.skipped.isEmpty {
+            message += " \(outcome.skipped.count) \(outcome.skipped.count == 1 ? "thing" : "things") didn't come over."
+        }
+        return BrowserToast(title: "Your \(browser.shortName) is in", message: message)
+    }
+
     func pick(_ color: AppearanceColor) {
+        tintPicked = true
         tint = color
         music?.cue(.warmth((color.red + color.green) / 2))
     }
@@ -333,9 +364,9 @@ final class PremiereModel: ObservableObject {
         defaultState = .asking
         let app = Bundle.main.bundleURL
         Task { @MainActor in
-            for scheme in ["http", "https"] {
-                try? await NSWorkspace.shared.setDefaultApplication(at: app, toOpenURLsWithScheme: scheme)
-            }
+            // Stop at the first "no": asking again for https would be a second prompt right after a decline.
+            do { for scheme in ["http", "https"] { try await NSWorkspace.shared.setDefaultApplication(at: app, toOpenURLsWithScheme: scheme) } }
+            catch {}
             let isDefault = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!)?.standardizedFileURL
                 == app.standardizedFileURL
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { defaultState = isDefault ? .done : .declined }

@@ -66,9 +66,8 @@ private struct GeneralSettings: View {
     private func makeDefault() {
         // macOS asks the user to confirm; check again once it answers.
         Task { @MainActor in
-            for scheme in ["http", "https"] {
-                try? await NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpenURLsWithScheme: scheme)
-            }
+            do { for scheme in ["http", "https"] { try await NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpenURLsWithScheme: scheme) } }
+            catch {}   // stop at the first "no" rather than asking again
             isDefault = GeneralSettings.isDefaultBrowser()
         }
     }

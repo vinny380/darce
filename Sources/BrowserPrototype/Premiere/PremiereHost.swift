@@ -51,7 +51,7 @@ struct ToastCard: View {
             Text(toast.title).font(.system(size: 13, weight: .semibold))
             Text(toast.message).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 12) {
-                Button("Got it", action: dismiss).keyboardShortcut(.defaultAction).controlSize(.small)
+                Button("Got it", action: dismiss).controlSize(.small)
                 if toast.offersArchiveSettings { Button("Change timing…", action: openSettings).buttonStyle(.link).controlSize(.small) }
             }
             .padding(.top, 2)
