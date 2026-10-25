@@ -22,6 +22,8 @@ config=${CONFIG:-debug}
 swift build -c "$config" --product BrowserPrototype
 mkdir -p "$app/Contents/MacOS"
 cp ".build/$config/BrowserPrototype" "$app/Contents/MacOS/BrowserPrototype"
+mkdir -p "$app/Contents/Resources"
+cp Assets/Compiled/Assets.car Assets/Compiled/AppIcon.icns "$app/Contents/Resources/"   # scripts/icon.sh rebuilds these
 python3 - "$app" <<'PY'
 import os, plistlib, pathlib, sys
 app = pathlib.Path(sys.argv[1])
@@ -31,6 +33,8 @@ info = {
     'CFBundleIdentifier': 'io.github.vinny380.darce',
     'CFBundleExecutable': 'BrowserPrototype',
     'CFBundlePackageType': 'APPL',
+    'CFBundleIconFile': 'AppIcon',
+    'CFBundleIconName': 'AppIcon',
     'CFBundleShortVersionString': os.environ.get('VERSION', '0.1.0'),
     'CFBundleVersion': '1',
     'LSMinimumSystemVersion': '14.0',
