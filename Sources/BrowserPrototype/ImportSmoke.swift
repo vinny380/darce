@@ -180,7 +180,7 @@ func runPremiereMusicSmoke() -> [String: Bool] {
     // The opening bloom swells in rather than jolting: its peak sits within 5 dB of the bar before it.
     let file = FileManager.default.temporaryDirectory.appendingPathComponent("darce-bloom-\(UUID().uuidString).caf")
     defer { try? FileManager.default.removeItem(at: file) }
-    var gentle = false
+    var gentle = false, clean = false
     if (try? PremiereMusic.renderOffline(seconds: 4, to: file)) != nil, let audio = try? AVAudioFile(forReading: file),
        let buffer = AVAudioPCMBuffer(pcmFormat: audio.processingFormat, frameCapacity: AVAudioFrameCount(audio.length)),
        (try? audio.read(into: buffer)) != nil, let samples = buffer.floatChannelData?[0] {
@@ -189,9 +189,12 @@ func runPremiereMusicSmoke() -> [String: Bool] {
             20 * log10(Double((Int(from * rate)..<Int(to * rate)).map { abs(samples[$0]) }.max() ?? 0) + 1e-9)
         }
         gentle = peak(2.6, 3.6) - peak(2.0, 2.6) <= 5
+        // No pops or crackle: the waveform never jumps (a click is a spike in the second difference).
+        clean = (Int(0.5 * rate)..<Int(3.9 * rate)).allSatisfy { abs(samples[$0] - 2 * samples[$0 - 1] + samples[$0 - 2]) < 0.004 }
     }
     return ["premiere_music_renders_quietly_and_audibly": level.peakDBFS <= -18 && level.rmsDBFS > -50,
-            "premiere_music_bloom_swells_not_jolts": gentle]
+            "premiere_music_bloom_swells_not_jolts": gentle,
+            "premiere_music_has_no_pops": clean]
 }
 
 /// Every welcome step lays out, and its words fit the browser being imported (or none).

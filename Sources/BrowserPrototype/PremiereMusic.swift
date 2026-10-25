@@ -3,7 +3,7 @@ import Foundation
 import os
 
 /// The welcome's soft lofi score, synthesized live: warm pad chords, a Rhodes-like keys line, round bass, dusty
-/// drums, vinyl crackle and tape wobble, through a small room reverb. No audio files ship with the app.
+/// drums and tape wobble, through a small room reverb. No audio files ship with the app.
 /// The last stage is a soft limiter, so the output can never peak above −18 dBFS.
 @MainActor
 final class PremiereMusic {
@@ -144,7 +144,7 @@ final class LofiSynth: @unchecked Sendable {
     private var master = 0.0, masterTarget = 0.0, masterStep = 0.0
     private var mute = 1.0, muteTarget = 1.0, muteStep = 1.0
     private var noiseState: UInt32 = 0x9E3779B9
-    private var crackle = 0.0, hiss = 0.0
+    private var hiss = 0.0
     private var lowpass = (0.0, 0.0, 0.0, 0.0)
     private var reverb = Reverb()
     /// Everything the main thread asks for, applied by the audio thread at the start of its next block.
@@ -335,11 +335,9 @@ final class LofiSynth: @unchecked Sendable {
             let tone = 1 - exp(-tau * (2_400 + 3_000 * warmth) * dt)
             lowpass.0 += tone * (bodyL - lowpass.0); lowpass.1 += tone * (lowpass.0 - lowpass.1)
             lowpass.2 += tone * (bodyR - lowpass.2); lowpass.3 += tone * (lowpass.2 - lowpass.3)
-            // Vinyl: sparse soft pops and a whisper of hiss.
-            if noise() > 0.99965 { crackle = 0.04 + 0.05 * abs(noise()) }
-            crackle *= 0.985
+            // A whisper of tape hiss (no vinyl pops: they read as crackling).
             hiss += 0.05 * (noise() * 0.006 - hiss)
-            let dryL = lowpass.1 + lowL + crackle + hiss, dryR = lowpass.3 + lowR + crackle * 0.8 + hiss
+            let dryL = lowpass.1 + lowL + hiss, dryR = lowpass.3 + lowR + hiss
             let (wetL, wetR) = reverb.process(dryL * 0.5 + dryR * 0.5)
             let mixL = dryL + wetL * 0.32, mixR = dryR + wetR * 0.32
 
