@@ -257,8 +257,11 @@ func runPremiereLifecycleSmoke() -> [String: Bool] {
 /// The real engine path renders on a background thread (as the audio thread does) without tripping actor checks.
 @MainActor
 func runPremiereEngineSmoke() async -> [String: Bool] {
-    let rendered = await Task.detached { PremiereMusic.renderThroughEngineOffline(frames: 4_096) }.value
-    return ["premiere_engine_renders_off_main_thread": rendered]
+    let rendered = await Task.detached { PremiereMusic.renderThroughOutputOffline(frames: 4_096) }.value
+    return ["premiere_engine_renders_off_main_thread": rendered,
+            // Playback is output-only: on a speaker that also has inputs (virtual devices, docks), it must never
+            // ask for the microphone.
+            "premiere_music_output_cannot_record": PremiereMusic.playbackCanRecord() == false]
 }
 
 /// Review fixes: the color is only written when picked; late-import notes are honest; an empty read offers Start fresh.

@@ -1,3 +1,4 @@
+import AudioToolbox
 import AVFoundation
 import Foundation
 import os
@@ -21,63 +22,38 @@ final class PremiereMusic {
     }
 
     private let synth = LofiSynth(sampleRate: 44_100)
-    private var engine: AVAudioEngine?
+    private var output: SpeakerOutput?
 
     init(muted: Bool) { synth.setMuted(muted, ramp: 0) }
 
     func start() {
-        guard engine == nil else { return }
-        let engine = AVAudioEngine()
-        // No usable output (a headless Mac): touching the mixer would raise an exception Swift can't catch.
-        let output = engine.outputNode.outputFormat(forBus: 0)
-        guard output.channelCount > 0, output.sampleRate > 0 else { return }
-        let source = Self.makeSource(synth)
-        engine.attach(source)
-        engine.connect(source, to: engine.mainMixerNode, format: Self.format)
-        do { try engine.start() } catch { return }   // no output device: stay silent, never block the welcome
-        self.engine = engine
+        guard output == nil, let output = SpeakerOutput(synth: synth), output.start() else { return }   // no output: stay silent
+        self.output = output
         synth.fadeIn(seconds: 2)
     }
 
-    private nonisolated static let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
-
-    /// The render callback runs on the audio thread, so it's built outside the main actor and is `@Sendable`;
-    /// otherwise Swift's actor check would stop the app on the first buffer.
-    private nonisolated static func makeSource(_ synth: LofiSynth) -> AVAudioSourceNode {
-        AVAudioSourceNode(format: format) { @Sendable _, _, frameCount, buffers -> OSStatus in
-            let list = UnsafeMutableAudioBufferListPointer(buffers)
-            guard list.count >= 2, let left = list[0].mData?.assumingMemoryBound(to: Float.self),
-                  let right = list[1].mData?.assumingMemoryBound(to: Float.self) else { return noErr }
-            synth.render(left: left, right: right, frames: Int(frameCount))
-            return noErr
-        }
+    /// The real playback path, pulled once from a background thread without a device (smoke check).
+    nonisolated static func renderThroughOutputOffline(frames: Int) -> Bool {
+        SpeakerOutput(synth: LofiSynth(sampleRate: 44_100))?.pull(frames: frames) ?? false
     }
 
-    /// The real engine path, rendered offline and called from a background thread (smoke check).
-    nonisolated static func renderThroughEngineOffline(frames: Int) -> Bool {
-        let engine = AVAudioEngine()
-        let source = makeSource(LofiSynth(sampleRate: 44_100))
-        engine.attach(source)
-        engine.connect(source, to: engine.mainMixerNode, format: format)
-        guard (try? engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: AVAudioFrameCount(frames))) != nil,
-              (try? engine.start()) != nil,
-              let buffer = AVAudioPCMBuffer(pcmFormat: engine.manualRenderingFormat, frameCapacity: AVAudioFrameCount(frames)) else { return false }
-        defer { engine.stop() }
-        return (try? engine.renderOffline(AVAudioFrameCount(frames), to: buffer)) == .success
+    /// Whether playback could ever record: it plays through an output-only unit, so this is false.
+    nonisolated static func playbackCanRecord() -> Bool {
+        SpeakerOutput(synth: LofiSynth(sampleRate: 44_100))?.hasInput ?? true
     }
 
     func cue(_ cue: Cue) { synth.enqueue(cue) }
     func setMuted(_ muted: Bool) { synth.setMuted(muted, ramp: 0.15) }
-    func setPaused(_ paused: Bool) { if paused { engine?.pause() } else { try? engine?.start() } }
+    func setPaused(_ paused: Bool) { if paused { output?.stop() } else { _ = output?.start() } }
 
     func stop(fade: TimeInterval) {
-        guard let engine else { return }
-        if fade <= 0 { engine.stop(); self.engine = nil; return }
+        guard let output else { return }
+        if fade <= 0 { output.stop(); self.output = nil; return }
         synth.fadeOut(seconds: fade)
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(fade + 0.2))
-            engine.stop()
-            if self?.engine === engine { self?.engine = nil }
+            output.stop()
+            if self?.output === output { self?.output = nil }
         }
     }
 
@@ -121,6 +97,78 @@ final class PremiereMusic {
 
 /// The synthesizer. Rendering happens on the audio thread; cues arrive from the main thread through a small
 /// lock that the audio thread only ever tries (it never waits).
+/// Plays the synth through Apple's DefaultOutput unit, which has no input side, so the score can never ask for
+/// the microphone. With AVAudioEngine's input/output unit, a Mac whose speaker also has inputs (a virtual device
+/// like Background Music) was asked to let D'arce use the microphone in the middle of the welcome.
+final class SpeakerOutput: @unchecked Sendable {
+    private let unit: AudioUnit
+    private let synth: LofiSynth   // kept alive: the render callback holds it unretained
+
+    init?(synth: LofiSynth) {
+        var description = AudioComponentDescription(componentType: kAudioUnitType_Output, componentSubType: kAudioUnitSubType_DefaultOutput,
+                                                    componentManufacturer: kAudioUnitManufacturer_Apple, componentFlags: 0, componentFlagsMask: 0)
+        var instance: AudioUnit?
+        guard let component = AudioComponentFindNext(nil, &description), AudioComponentInstanceNew(component, &instance) == noErr,
+              let unit = instance else { return nil }
+        var format = AudioStreamBasicDescription(mSampleRate: 44_100, mFormatID: kAudioFormatLinearPCM,
+                                                 mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked | kAudioFormatFlagIsNonInterleaved,
+                                                 mBytesPerPacket: 4, mFramesPerPacket: 1, mBytesPerFrame: 4, mChannelsPerFrame: 2,
+                                                 mBitsPerChannel: 32, mReserved: 0)
+        var maxFrames: UInt32 = 4_096
+        var callback = AURenderCallbackStruct(inputProc: Self.render, inputProcRefCon: Unmanaged.passUnretained(synth).toOpaque())
+        guard AudioUnitSetProperty(unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0, &format,
+                                   UInt32(MemoryLayout<AudioStreamBasicDescription>.size)) == noErr,
+              AudioUnitSetProperty(unit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input, 0, &callback,
+                                   UInt32(MemoryLayout<AURenderCallbackStruct>.size)) == noErr,
+              // macOS asks for bigger slices while the screen sleeps; 4096 is Apple's recommended ceiling.
+              AudioUnitSetProperty(unit, kAudioUnitProperty_MaximumFramesPerSlice, kAudioUnitScope_Global, 0, &maxFrames,
+                                   UInt32(MemoryLayout<UInt32>.size)) == noErr,
+              AudioUnitInitialize(unit) == noErr else { AudioComponentInstanceDispose(unit); return nil }
+        self.unit = unit
+        self.synth = synth
+    }
+
+    /// A C callback on the audio thread: no actor isolation, the synth arrives through the context pointer.
+    private static let render: AURenderCallback = { context, _, _, _, frames, buffers in
+        guard let buffers else { return noErr }
+        let list = UnsafeMutableAudioBufferListPointer(buffers)
+        guard list.count >= 2, let left = list[0].mData?.assumingMemoryBound(to: Float.self),
+              let right = list[1].mData?.assumingMemoryBound(to: Float.self) else { return noErr }
+        Unmanaged<LofiSynth>.fromOpaque(context).takeUnretainedValue().render(left: left, right: right, frames: Int(frames))
+        return noErr
+    }
+
+    deinit {
+        AudioOutputUnitStop(unit)
+        AudioUnitUninitialize(unit)
+        AudioComponentInstanceDispose(unit)
+    }
+
+    func start() -> Bool { AudioOutputUnitStart(unit) == noErr }
+    func stop() { AudioOutputUnitStop(unit) }
+
+    /// Whether the unit has an input side it could enable.
+    var hasInput: Bool {
+        var enabled: UInt32 = 0, size = UInt32(MemoryLayout<UInt32>.size)
+        return AudioUnitGetProperty(unit, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Input, 1, &enabled, &size) == noErr
+    }
+
+    /// Calls the render callback once, the way the audio thread does, without a device (output units can't be
+    /// pulled by hand).
+    func pull(frames: Int) -> Bool {
+        let buffers = AudioBufferList.allocate(maximumBuffers: 2)
+        defer { buffers.unsafeMutablePointer.deallocate() }
+        let storage = (0..<2).map { _ in UnsafeMutablePointer<Float>.allocate(capacity: frames) }
+        defer { storage.forEach { $0.deallocate() } }
+        for (index, data) in storage.enumerated() {
+            buffers[index] = AudioBuffer(mNumberChannels: 1, mDataByteSize: UInt32(frames * 4), mData: data)
+        }
+        var flags = AudioUnitRenderActionFlags()
+        var time = AudioTimeStamp()
+        return Self.render(Unmanaged.passUnretained(synth).toOpaque(), &flags, &time, 0, UInt32(frames), buffers.unsafeMutablePointer) == noErr
+    }
+}
+
 final class LofiSynth: @unchecked Sendable {
     private struct Voice {
         enum Kind { case pad, keys, bass, kick, snare, hat }
