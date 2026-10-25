@@ -32,11 +32,13 @@ extension BrowserModel {
     @discardableResult
     func applyBrowserImport(_ profiles: [ImportedProfile], from browser: ImportBrowser, into destination: ImportDestination,
                             options: ImportOptions) -> ImportOutcome {
-        var outcome = ImportOutcome()
-        guard stateUpdate({ outcome = $0.applyImport(profiles, from: browser, into: destination, options: options) }) else {
-            errorMessage = "The import could not be saved."
-            return outcome
+        var applied = ImportOutcome()
+        guard stateUpdate({ applied = $0.applyImport(profiles, from: browser, into: destination, options: options) }) else {
+            var failed = ImportOutcome()
+            failed.skipped = ["Nothing could be saved. D'arce can't write its session right now; recover it, then import again."]
+            return failed
         }
+        var outcome = applied
         let folderSpaces = Dictionary(uniqueKeysWithValues: state.folders.map { ($0.id, $0.spaceID) })
         _ = appearance.update { preferences in
             for (space, style) in outcome.spaceStyles {
@@ -188,13 +190,15 @@ struct ImportSheet: View {
         let lines: [(String, String)] = [("spaces", "Spaces"), ("tabs", "Tabs"), ("favorites", "Favorites"), ("folders", "Folders"),
                                          ("bookmarks", "Bookmarks"), ("history", "History")]
         return VStack(alignment: .leading, spacing: 12) {
-            Text(outcome.skipped.isEmpty ? "Success! Everything came over" : "Most of your stuff came over").font(.headline)
+            let nothing = outcome.counts.values.allSatisfy { $0 == 0 }
+            Text(outcome.skipped.isEmpty ? "Success! Everything came over" : nothing ? "Nothing came over" : "Most of your stuff came over")
+                .font(.headline)
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 4) {
                 ForEach(lines.filter { (outcome.counts[$0.0] ?? 0) > 0 }, id: \.0) { key, name in
                     GridRow { Text(name).foregroundStyle(.secondary); Text("\(outcome.counts[key] ?? 0)").monospacedDigit() }
                 }
             }
-            if outcome.counts.values.allSatisfy({ $0 == 0 }) { Text("Everything here was already in D'arce.").foregroundStyle(.secondary) }
+            if nothing && outcome.skipped.isEmpty { Text("Everything here was already in D'arce.").foregroundStyle(.secondary) }
             if !outcome.skipped.isEmpty {
                 DisclosureGroup("Didn't come over (\(outcome.skipped.count))") {
                     ScrollView {

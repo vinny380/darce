@@ -29,3 +29,19 @@ func runBrowserImportSmoke() -> [String: Bool] {
         "import_twice_adds_nothing": second.counts.values.allSatisfy { $0 == 0 },
     ]
 }
+
+/// When the session can't be saved (an unreadable session.json puts D'arce in recovery mode), the import must
+/// report that nothing came over instead of "Success".
+@MainActor
+func runUnsavedImportSmoke() -> [String: Bool] {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("darce-import-unsaved-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    try? Data("not a session".utf8).write(to: directory.appendingPathComponent("session.json"))
+    let model = BrowserModel(directory: directory, ephemeralWebsiteData: true)
+    var profile = ImportedProfile(key: "arc:Default", name: "Default", directory: nil)
+    profile.spaces = [ImportedSpace(key: "arc-space:unsaved", name: "Unsaved",
+                                    pinned: [.tab(key: "arc:unsaved", title: "Pin", url: URL(string: "https://pin.invalid/")!)])]
+    let outcome = model.applyBrowserImport([profile], from: .arc, into: .newProfiles, options: ImportOptions())
+    return ["unsaved_import_reports_nothing": model.recoveryRequired && outcome.counts.values.allSatisfy { $0 == 0 } && !outcome.skipped.isEmpty]
+}
