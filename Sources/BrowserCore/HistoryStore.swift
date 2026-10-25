@@ -53,6 +53,31 @@ public struct HistoryStore: Sendable {
         records = contents.records
     }
 
+    /// Imported visits in one write: known pages keep the newer visit, new pages are added. Returns how many are new.
+    @discardableResult
+    public mutating func merge(_ visits: [ImportedVisit], profileID: UUID) throws -> Int {
+        var candidate = records
+        var positions = Dictionary(candidate.indices.filter { candidate[$0].profileID == profileID }
+            .map { (candidate[$0].url.absoluteString, $0) }, uniquingKeysWith: { first, _ in first })
+        var added = 0
+        for visit in visits where Self.allowed(visit.url) {
+            let key = visit.url.absoluteString
+            if let index = positions[key] {
+                guard visit.visitedAt > candidate[index].visitedAt else { continue }
+                candidate[index].visitedAt = visit.visitedAt
+                if !visit.title.isEmpty { candidate[index].title = visit.title }
+            } else {
+                candidate.append(HistoryRecord(id: UUID(), url: visit.url, title: visit.title.isEmpty ? key : visit.title,
+                                               visitedAt: visit.visitedAt, profileID: profileID))
+                positions[key] = candidate.count - 1
+                added += 1
+            }
+        }
+        guard candidate != records else { return 0 }
+        try commit(candidate)
+        return added
+    }
+
     public mutating func record(
         url: URL, title: String, profileID: UUID, visitedAt: Date = Date()
     ) throws {

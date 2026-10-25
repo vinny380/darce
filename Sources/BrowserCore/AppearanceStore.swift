@@ -121,8 +121,17 @@ public struct AppearanceStore: Sendable {
               state.spaces.values.allSatisfy({ space in
                   [space.tint.red, space.tint.green, space.tint.blue, space.tint.alpha].allSatisfy { $0.isFinite && (0...1).contains($0) } &&
                   (space.theme.map { (1...3).contains($0.colorCount) && $0.intensity.isFinite && (0...1).contains($0.intensity) } ?? true) &&
-                  !space.icon.isEmpty && space.icon.utf8.count <= 128 &&
-                  space.icon.unicodeScalars.allSatisfy { iconCharacters.contains($0) }
+                  (AppearancePreferences.isEmojiIcon(space.icon) || (!space.icon.isEmpty && space.icon.utf8.count <= 128 &&
+                   space.icon.unicodeScalars.allSatisfy { iconCharacters.contains($0) }))
               }) else { throw AppearanceStoreError.invalidValues }
+    }
+}
+
+extension AppearancePreferences {
+    /// One emoji (imported Arc Spaces use them as icons): a single character drawn as emoji by default
+    /// or with the emoji variation selector, so plain digits and symbols don't count.
+    public static func isEmojiIcon(_ icon: String) -> Bool {
+        guard icon.count == 1, icon.utf8.count <= 32, let first = icon.unicodeScalars.first else { return false }
+        return first.properties.isEmojiPresentation || icon.unicodeScalars.contains("\u{FE0F}")
     }
 }

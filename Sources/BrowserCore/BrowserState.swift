@@ -83,6 +83,9 @@ public struct BrowserState: Codable, Equatable, Sendable {
     public private(set) var selectedSpaceID: UUID
     public private(set) var selectedTabID: UUID?
     public private(set) var selectedTabBySpace: [UUID: UUID] = [:]
+    /// What earlier browser imports created: the source's key → the D'arce profile, Space, folder or tab.
+    /// Kept after the user deletes something, so importing again never brings it back.
+    public internal(set) var importedIDs: [String: UUID] = [:]
 
     public init() {
         let profile = BrowserProfile(id: UUID(), name: "Default")
@@ -94,6 +97,7 @@ public struct BrowserState: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, splitGroups, autoArchiveStartTime, profiles, spaces, tabs, folders, selectedSpaceID, selectedTabID, selectedTabBySpace
+        case importedIDs
     }
 
     public init(from decoder: any Decoder) throws {
@@ -121,6 +125,7 @@ public struct BrowserState: Codable, Equatable, Sendable {
         selectedSpaceID = try values.decode(UUID.self, forKey: .selectedSpaceID)
         selectedTabID = try values.decodeIfPresent(UUID.self, forKey: .selectedTabID)
         selectedTabBySpace = try values.decodeIfPresent([UUID: UUID].self, forKey: .selectedTabBySpace) ?? [:]
+        importedIDs = try values.decodeIfPresent([String: UUID].self, forKey: .importedIDs) ?? [:]
         if version == 1, let selectedTabID { selectedTabBySpace[selectedSpaceID] = selectedTabID }
     }
 
