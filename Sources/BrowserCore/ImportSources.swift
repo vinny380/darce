@@ -59,6 +59,9 @@ public enum ImportSources {
             catch { profiles[index].skipped.append("History from \(profiles[index].name): \(error.localizedDescription)") }
             do { profiles[index].bookmarks = try ChromiumReader.bookmarks(profile: directory, keyPrefix: profiles[index].key, skipped: &profiles[index].skipped) }
             catch { profiles[index].skipped.append("Bookmarks from \(profiles[index].name): \(error.localizedDescription)") }
+            let profile = profiles[index]
+            let pages = (profile.spaces.flatMap { $0.pinned + $0.today } + profile.favorites + profile.bookmarks).flatMap(\.urls)
+            profiles[index].icons = ChromiumReader.icons(profile: directory, pages: pages)
             profiles[index].cookieCount = ChromiumReader.cookieCount(profile: directory)
             profiles[index].extensions = ChromiumReader.extensions(profile: directory)
         }

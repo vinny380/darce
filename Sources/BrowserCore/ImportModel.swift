@@ -76,6 +76,8 @@ public struct ImportedProfile: Equatable, Sendable {
     /// Cookies to bring over, counted without decrypting (decrypting needs the keychain; see `ImportSources.cookies`).
     public var cookieCount = 0
     public var extensions: [ImportedExtension] = []
+    /// Site icons (PNG) for the imported tabs, by page address, so they show before each page loads.
+    public var icons: [String: Data] = [:]
     /// Human-readable lines for "Didn't come over".
     public var skipped: [String] = []
 
@@ -88,5 +90,15 @@ enum ImportURL {
         guard let url = URL(string: string), let scheme = url.scheme?.lowercased() else { return nil }
         if scheme == "http" || scheme == "https" { return url.host?.isEmpty == false ? url : nil }
         return string == "about:blank" ? url : nil
+    }
+}
+
+extension ImportedItem {
+    /// Every tab address in this item, folders and splits included.
+    var urls: [URL] {
+        switch self {
+        case .tab(_, _, let url): [url]
+        case .folder(_, _, let children), .split(_, let children, _): children.flatMap(\.urls)
+        }
     }
 }

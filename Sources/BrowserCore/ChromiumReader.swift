@@ -128,6 +128,53 @@ public enum ChromiumReader {
         return (match?["message"] as? String).flatMap { $0.isEmpty ? nil : $0 }
     }
 
+    /// Each page's site icon from the profile's `Favicons` database: the page's own, else the one most used on the
+    /// same site (Favorites often point at a page that redirects). Prefers 32px; only PNGs a tab can keep.
+    public static func icons(profile: URL, pages: [URL]) -> [String: Data] {
+        guard !pages.isEmpty, FileManager.default.fileExists(atPath: profile.appendingPathComponent("Favicons").path) else { return [:] }
+        func site(_ url: URL) -> String? {
+            guard var host = url.host?.lowercased() else { return nil }
+            if host.hasPrefix("www.") { host.removeFirst(4) }
+            return host
+        }
+        return (try? withCopy(of: "Favicons", in: profile) { db -> [String: Data] in
+            var exact: [String: Int] = [:], bySite: [String: [Int: Int]] = [:]
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(db, "SELECT page_url, icon_id FROM icon_mapping", -1, &statement, nil) == SQLITE_OK else { return [:] }
+            while sqlite3_step(statement) == SQLITE_ROW {
+                guard let text = sqlite3_column_text(statement, 0) else { continue }
+                let page = String(cString: text), icon = Int(sqlite3_column_int64(statement, 1))
+                exact[page] = exact[page] ?? icon
+                if let url = URL(string: page), let host = site(url) { bySite[host, default: [:]][icon, default: 0] += 1 }
+            }
+            sqlite3_finalize(statement)
+            var wanted: [String: Int] = [:]
+            for page in pages {
+                if let icon = exact[page.absoluteString] ?? site(page).flatMap({ bySite[$0]?.max { $0.value < $1.value }?.key }) {
+                    wanted[page.absoluteString] = icon
+                }
+            }
+            guard !wanted.isEmpty else { return [:] }
+            var best: [Int: (width: Int, png: Data)] = [:]
+            let ids = Set(wanted.values).map(String.init).joined(separator: ",")
+            guard sqlite3_prepare_v2(db, "SELECT icon_id, width, image_data FROM favicon_bitmaps WHERE icon_id IN (\(ids))",
+                                     -1, &statement, nil) == SQLITE_OK else { return [:] }
+            defer { sqlite3_finalize(statement) }
+            while sqlite3_step(statement) == SQLITE_ROW {
+                let icon = Int(sqlite3_column_int64(statement, 0)), width = Int(sqlite3_column_int(statement, 1))
+                let length = Int(sqlite3_column_bytes(statement, 2))
+                guard length > 0, let bytes = sqlite3_column_blob(statement, 2) else { continue }
+                let png = Data(bytes: bytes, count: length)
+                guard SavedFavicon.isAcceptablePNG(png) else { continue }
+                // Closest to 32px wins; on a tie, the larger one.
+                if let current = best[icon], abs(current.width - 32) < abs(width - 32)
+                    || (abs(current.width - 32) == abs(width - 32) && current.width >= width) { continue }
+                best[icon] = (width, png)
+            }
+            return wanted.compactMapValues { best[$0]?.png }
+        }) ?? [:]
+    }
+
     /// How many cookies there are to bring over, without decrypting anything (for the import sheet).
     public static func cookieCount(profile: URL) -> Int {
         guard FileManager.default.fileExists(atPath: profile.appendingPathComponent("Cookies").path) else { return 0 }

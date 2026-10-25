@@ -174,6 +174,15 @@ extension BrowserState {
             _ = homeSpace(&self, &outcome)   // a new profile is unusable without a Space
         }
         if wantsHistory { outcome.history.append(ProfileHistory(profileID: profileID, visits: source.history)) }
+        // Imported tabs show their site's icon right away instead of a letter until each page loads.
+        if !source.icons.isEmpty {
+            for tab in tabs where tab.kind != .archived && savedFaviconPNG(forTab: tab.id) == nil
+                && self.profileID(forTab: tab.id) == profileID {
+                if let png = source.icons[tab.url.absoluteString] {
+                    _ = updateSavedFavicon(tab.id, profileID: profileID, png: png, liveURL: nil, canGoBack: false, hasLoaded: false)
+                }
+            }
+        }
     }
 
     private func hasNew(_ items: [ImportedItem]) -> Bool {
