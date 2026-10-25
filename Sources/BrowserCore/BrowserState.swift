@@ -768,3 +768,27 @@ extension BrowserState {
         if from != to { tabs[index].savedFavicon = nil }
     }
 }
+
+// MARK: Import (callers in ApplyImport.swift)
+
+extension BrowserState {
+    /// Adds an imported tab without selecting it, so a large import stays linear and leaves every Space's
+    /// remembered tab alone. Call `finishImport()` once afterwards.
+    mutating func appendImportedTab(title: String, url: URL, kind: TabKind, spaceID: UUID, folderID: UUID?, now: Date = Date()) -> UUID {
+        var tab = BrowserTab(id: UUID(), spaceID: spaceID, url: url, title: title, kind: kind, now: now)
+        if kind == .pinned || kind == .favorite { tab.homeURL = url }
+        tab.folderID = kind == .pinned ? folderID : nil
+        tabs.append(tab)
+        return tab.id
+    }
+
+    /// Groups imported tabs (2–4) side by side, evenly.
+    mutating func appendImportedSplit(_ ids: [UUID], spaceID: UUID, vertical: Bool) {
+        guard (2...4).contains(ids.count) else { return }
+        splitGroups.append(BrowserSplitGroup(id: UUID(), spaceID: spaceID, tabIDs: ids,
+                                             weights: Array(repeating: 1 / Double(ids.count), count: ids.count),
+                                             axis: vertical ? .vertical : .horizontal))
+    }
+
+    mutating func finishImport() { repairSelection() }
+}

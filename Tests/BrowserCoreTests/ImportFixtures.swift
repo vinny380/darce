@@ -91,6 +91,7 @@ struct ArcSidebarFixture {
             .folder("Docs", [.tab("Spec", "https://docs.example/spec"), .folder("Deep", [.tab("Note", "https://docs.example/note")])]),
             .split([.tab("Left", "https://left.example/"), .tab("Right", "https://right.example/")], vertical: false),
             .tab("Bad", "javascript:alert(1)"),
+            .tab("Local", "file:///Users/me/report.pdf"),
         ], today: [.tab("News", "https://news.example/")])
         fixture.space(title: nil, icon: ["emoji": "🚀"])
         fixture.space(title: "Side", profile: customProfile("Profile 9"), pinned: [.tab("Side", "https://side.example/")])

@@ -56,6 +56,7 @@ extension BrowserState {
             importProfile(source, from: browser, into: destination, options: options, starter: starter,
                           reusedStarterProfile: &reusedStarterProfile, outcome: &outcome)
         }
+        finishImport()
         if outcome.firstSpaceID != nil {
             for id in starter { deleteSpace(id) }
         }
@@ -178,11 +179,7 @@ extension BrowserState {
     }
 
     private mutating func makeTab(_ title: String, url: URL, kind: TabKind, space: UUID, folder: UUID?) -> UUID {
-        if selectedSpaceID != space { selectSpace(space) }
-        let id = openTab(url: url, title: title)
-        if kind != .today { setKind(id, kind: kind) }
-        if let folder { _ = moveTab(id, into: folder) }
-        return id
+        appendImportedTab(title: title, url: url, kind: kind, spaceID: space, folderID: folder)
     }
 
     private mutating func importItems(_ items: [ImportedItem], kind: TabKind, space: UUID, folder: UUID?,
@@ -218,10 +215,7 @@ extension BrowserState {
                 }
                 guard let first = ids.first else { continue }
                 importedIDs[key] = first
-                for id in ids.dropFirst().prefix(3) { _ = splitTab(id, onto: first) }
-                if vertical, let group = splitGroups.first(where: { $0.tabIDs.contains(first) }) {
-                    _ = setSplitAxis(group.id, axis: .vertical)
-                }
+                appendImportedSplit(Array(ids.prefix(4)), spaceID: space, vertical: vertical)
             }
         }
     }

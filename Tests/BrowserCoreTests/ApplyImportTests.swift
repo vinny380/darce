@@ -171,3 +171,28 @@ private func title(_ state: BrowserState, _ id: UUID?) -> String? { state.tabs.f
     #expect(AppearancePreferences.isEmojiIcon("👩‍💻"))
     for junk in ["ab", "🚀🚀", "<script>", "", "1"] { #expect(!AppearancePreferences.isEmojiIcon(junk)) }
 }
+
+// Final review fixes. Each test names the bug it catches.
+
+@Test func largeBookmarkImportDoesNotFreezeTheApp() {
+    var profile = ImportedProfile(key: "chrome:Default", name: "Me", directory: nil)
+    profile.bookmarks = (0..<250).map { folder in
+        .folder(key: "chrome:Default:bm:f\(folder)", title: "F\(folder)",
+                children: (0..<20).map { tab("chrome:Default:bm:\(folder)-\($0)", "T\(folder)x\($0)") })
+    }
+    var state = BrowserState()
+    let start = Date()
+    let outcome = state.applyImport([profile], from: .chrome, into: .newProfiles, options: ImportOptions())
+    #expect(outcome.counts["bookmarks"] == 5_000)
+    #expect(Date().timeIntervalSince(start) < 1.5)
+}
+
+@Test func importLeavesOtherSpacesRememberedTabsAlone() throws {
+    var state = BrowserState()
+    let personal = state.spaces[0].id, work = state.spaces[1].id
+    let mine = state.openTab(url: URL(string: "https://mine.example/")!)
+    state.selectSpace(work)
+    _ = state.applyImport([chromeProfile()], from: .chrome, into: .existing(state.profiles[0].id), options: ImportOptions())
+    state.selectSpace(personal)
+    #expect(state.selectedTabID == mine)
+}

@@ -54,8 +54,11 @@ public enum ImportSources {
         }
         for index in profiles.indices {
             guard let directory = profiles[index].directory else { continue }
-            profiles[index].history = try ChromiumReader.history(profile: directory, now: now)
-            profiles[index].bookmarks = try ChromiumReader.bookmarks(profile: directory, keyPrefix: profiles[index].key)
+            // One unreadable file costs only that part of that profile.
+            do { profiles[index].history = try ChromiumReader.history(profile: directory, now: now) }
+            catch { profiles[index].skipped.append("History from \(profiles[index].name): \(error.localizedDescription)") }
+            do { profiles[index].bookmarks = try ChromiumReader.bookmarks(profile: directory, keyPrefix: profiles[index].key, skipped: &profiles[index].skipped) }
+            catch { profiles[index].skipped.append("Bookmarks from \(profiles[index].name): \(error.localizedDescription)") }
         }
         return profiles.filter { !($0.spaces.isEmpty && $0.favorites.isEmpty && $0.bookmarks.isEmpty && $0.history.isEmpty) }
     }

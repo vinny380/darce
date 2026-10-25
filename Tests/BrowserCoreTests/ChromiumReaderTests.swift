@@ -60,7 +60,9 @@ enum ChromiumFixture {
         "other": [ChromiumFixture.url("C", "https://c.example/", guid: "g5")],
         "synced": [],
     ], in: folder.url)
-    let tree = try ChromiumReader.bookmarks(profile: folder.url, keyPrefix: "chrome:Default")
+    var skipped: [String] = []
+    let tree = try ChromiumReader.bookmarks(profile: folder.url, keyPrefix: "chrome:Default", skipped: &skipped)
+    #expect(skipped.count == 1)
     #expect(tree == [
         .tab(key: "chrome:Default:bm:g1", title: "A", url: URL(string: "https://a.example/")!),
         .folder(key: "chrome:Default:bm:g3", title: "F", children: [.tab(key: "chrome:Default:bm:g2", title: "B", url: URL(string: "https://b.example/")!)]),

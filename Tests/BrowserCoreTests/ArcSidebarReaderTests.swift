@@ -66,7 +66,8 @@ private func names(_ items: [ImportedItem]) -> [String] {
     let (profiles, _) = try readStandard()
     let main = try #require(profiles.first { $0.key == "arc:Default" })
     #expect(!names(main.spaces[0].pinned).contains("Bad"))
-    #expect(main.skipped.count == 1)
+    #expect(!names(main.spaces[0].pinned).contains("Local"))
+    #expect(main.skipped.count == 2)
 }
 
 @Test func arcIconNamesMapToSymbolsAndUnknownOnesFallBack() {

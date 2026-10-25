@@ -4,7 +4,10 @@ import SQLite3
 /// Reads a Chromium-family browser's profiles, bookmarks and history (Chrome, Arc, Brave, Edge, Vivaldi, Opera).
 /// Databases are read from a private copy, so the browser can stay open.
 public enum ChromiumReader {
-    public enum ReadError: Error { case unreadableDatabase }
+    public enum ReadError: Error, LocalizedError {
+        case unreadableDatabase
+        public var errorDescription: String? { "the browser's database couldn't be read" }
+    }
 
     /// Profile folders and their display names, in the browser's own order.
     public static func profiles(userData: URL) throws -> [(directory: String, name: String)] {
@@ -20,7 +23,7 @@ public enum ChromiumReader {
     }
 
     /// The bookmark bar's items, then "Other Bookmarks" and "Mobile Bookmarks" folders when they have anything.
-    public static func bookmarks(profile: URL, keyPrefix: String) throws -> [ImportedItem] {
+    public static func bookmarks(profile: URL, keyPrefix: String, skipped: inout [String]) throws -> [ImportedItem] {
         let file = profile.appendingPathComponent("Bookmarks")
         guard FileManager.default.fileExists(atPath: file.path) else { return [] }
         let roots = (try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])?["roots"] as? [String: Any] ?? [:]
@@ -32,7 +35,11 @@ public enum ChromiumReader {
                     let children = items(child)
                     return children.isEmpty ? nil : .folder(key: key, title: name.isEmpty ? "Folder" : name, children: children)
                 }
-                guard let url = ImportURL.supported(child["url"] as? String ?? "") else { return nil }
+                let address = child["url"] as? String ?? ""
+                guard let url = ImportURL.supported(address) else {
+                    skipped.append("Bookmark “\(name.isEmpty ? address : name)”: D'arce can't open this kind of address")
+                    return nil
+                }
                 return .tab(key: key, title: name.isEmpty ? url.absoluteString : name, url: url)
             }
         }
@@ -60,7 +67,10 @@ public enum ChromiumReader {
             // ponytail: over-fetch so non-web rows don't starve the limit; a page of chrome:// rows past 2× is unlikely.
             sqlite3_bind_int64(statement, 2, Int64(limit * 2))
             var visits: [ImportedVisit] = []
-            while visits.count < limit, sqlite3_step(statement) == SQLITE_ROW {
+            var step = SQLITE_ROW
+            while visits.count < limit {
+                step = sqlite3_step(statement)
+                guard step == SQLITE_ROW else { break }
                 guard let raw = sqlite3_column_text(statement, 0),
                       let url = ImportURL.supported(String(cString: raw)), url.scheme?.hasPrefix("http") == true else { continue }
                 let title = sqlite3_column_text(statement, 1).map { String(cString: $0) } ?? ""
@@ -68,6 +78,7 @@ public enum ChromiumReader {
                 visits.append(ImportedVisit(url: url, title: title.isEmpty ? url.absoluteString : title,
                                             visitedAt: Date(timeIntervalSince1970: seconds)))
             }
+            guard step == SQLITE_ROW || step == SQLITE_DONE else { throw ReadError.unreadableDatabase }
             return visits
         }
     }

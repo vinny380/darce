@@ -51,10 +51,10 @@ public struct ImportedProfile: Equatable, Sendable {
 }
 
 enum ImportURL {
-    /// Only addresses a D'arce tab can open.
+    /// Only addresses a D'arce tab can open (it doesn't open local files).
     static func supported(_ string: String) -> URL? {
         guard let url = URL(string: string), let scheme = url.scheme?.lowercased() else { return nil }
         if scheme == "http" || scheme == "https" { return url.host?.isEmpty == false ? url : nil }
-        return scheme == "file" || string == "about:blank" ? url : nil
+        return string == "about:blank" ? url : nil
     }
 }

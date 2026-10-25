@@ -38,3 +38,18 @@ private func support(_ home: URL) -> URL { home.appendingPathComponent("Library/
     #expect(profiles.map(\.key) == ["chrome:Default"])
     #expect(profiles[0].name == "Me" && profiles[0].bookmarks.count == 1)
 }
+
+@Test func oneUnreadableProfileDoesNotStopTheOthers() throws {
+    let home = try TemporaryDirectory()
+    let chrome = support(home.url).appendingPathComponent("Google/Chrome")
+    try ChromiumFixture.localState([("Default", "Me"), ("Profile 1", "Broken")], at: chrome)
+    try ChromiumFixture.bookmarks(["bookmark_bar": [ChromiumFixture.url("A", "https://a.example/", guid: "g1")]],
+                                  in: chrome.appendingPathComponent("Default"))
+    try ChromiumFixture.bookmarks(["bookmark_bar": [ChromiumFixture.url("B", "https://b.example/", guid: "g2")]],
+                                  in: chrome.appendingPathComponent("Profile 1"))
+    try Data("not a database".utf8).write(to: chrome.appendingPathComponent("Profile 1/History"))
+    let profiles = try ImportSources.read(.chrome, home: home.url)
+    #expect(profiles.map(\.key) == ["chrome:Default", "chrome:Profile 1"])
+    #expect(profiles[1].bookmarks.count == 1)
+    #expect(profiles[1].skipped.contains { $0.hasPrefix("History") })
+}
