@@ -101,7 +101,10 @@ public enum ChromiumReader {
             guard id.count == 32, id.allSatisfy({ ("a"..."p").contains($0) }),
                   entry["location"] as? Int == 1, entry["from_webstore"] as? Bool == true,
                   entry["was_installed_by_default"] as? Bool != true, entry["was_installed_by_oem"] as? Bool != true,
-                  !disabled else { return nil }
+                  !disabled,
+                  // The browser blocklisted it (malware, policy): never bring it back.
+                  entry["blacklist"] as? Bool != true, (entry["blacklist_state"] as? Int ?? 0) == 0,
+                  (entry["blocklist_state"] as? Int ?? 0) == 0 else { return nil }
             var files: URL?
             if let path = entry["path"] as? String, !path.hasPrefix("/"), !path.contains("..") {
                 let folder = profile.appendingPathComponent("Extensions").appendingPathComponent(path)

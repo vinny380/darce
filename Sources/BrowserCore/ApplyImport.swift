@@ -14,7 +14,16 @@ public struct ImportOptions: Equatable, Sendable {
     /// Clear the D'arce profile's cookies first. nil = only for profiles this import creates.
     public var replaceCookies: Bool?
     public var extensions = true
+    /// Extensions the person unticked in the import sheet.
+    public var excludedExtensionIDs: Set<String> = []
     public init() {}
+
+    /// The extensions to install: ticked ones, each once.
+    public static func ticked(_ extensions: [ImportedExtension], options: ImportOptions) -> [ImportedExtension] {
+        guard options.extensions else { return [] }
+        var seen: Set<String> = []
+        return extensions.filter { !options.excludedExtensionIDs.contains($0.id) && seen.insert($0.id).inserted }
+    }
 }
 
 public struct SpaceStyle: Equatable, Sendable {

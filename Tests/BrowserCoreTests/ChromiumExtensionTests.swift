@@ -63,3 +63,16 @@ private func preferences(_ settings: [String: Any], file: String = "Secure Prefe
     #expect(found.id == id && found.name == "On Disk")
     #expect(found.files?.standardizedFileURL == files.standardizedFileURL)
 }
+
+@Test func skipsExtensionsTheBrowserBlocklisted() throws {
+    let folder = try TemporaryDirectory()
+    var malware = entry(name: "Blocklisted")
+    malware["blacklist_state"] = 1
+    var legacy = entry(name: "Legacy blocklisted")
+    legacy["blacklist"] = true
+    var clean = entry(name: "Clean")
+    clean["blacklist_state"] = 0
+    try preferences(["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": malware, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": legacy,
+                     "cccccccccccccccccccccccccccccccc": clean], in: folder.url)
+    #expect(ChromiumReader.extensions(profile: folder.url).map(\.name) == ["Clean"])
+}
