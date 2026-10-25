@@ -2,48 +2,34 @@ import AppKit
 import BrowserCore
 import SwiftUI
 
-/// Debug: `--premiere-demo <dir>` plays the welcome by itself on a made-up Arc profile, for recording launch videos.
-/// It sizes the window, waits for `<dir>/go` (the recorder creates it once it's capturing), then walks every step.
+/// Debug: `--premiere-demo <dir>` stages the welcome for recording a launch video, on a made-up Arc profile.
+/// The window waits invisibly, centered at 1280×800; activating the app (a click on its Dock icon) is the launch:
+/// the welcome appears and plays as if D'arce had just opened. A recorder then drives it with real clicks.
 /// Site icons come from `<dir>/icons/<host>.png`.
 enum PremiereDemo {
     @MainActor
     static func play(_ browserModel: BrowserModel, directory: URL) {
-        // Recorded from behind other windows: keep App Nap from throttling the frames.
-        let activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .latencyCritical], reason: "Recording the welcome")
         Task { @MainActor in
-            defer { ProcessInfo.processInfo.endActivity(activity) }
-            try? await Task.sleep(for: .milliseconds(600))
-            if let window = NSApp.windows.first(where: { $0.isVisible && $0.styleMask.contains(.titled) }) {
-                window.setContentSize(NSSize(width: 1280, height: 800))
-                window.center()
-                // Hidden windows get throttled and drop frames: float on top (over full-screen apps too) without taking focus.
-                window.level = .floating
-                window.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
-                window.orderFrontRegardless()
+            var found: NSWindow?
+            while found == nil {
+                try? await Task.sleep(for: .milliseconds(100))
+                found = NSApp.windows.first { $0.isVisible && $0.styleMask.contains(.titled) }
             }
-            let go = directory.appendingPathComponent("go")
-            while !FileManager.default.fileExists(atPath: go.path) { try? await Task.sleep(for: .milliseconds(20)) }
-
+            guard let window = found else { return }
+            window.setContentSize(NSSize(width: 1280, height: 800))
+            window.center()
+            window.alphaValue = 0
+            for await _ in NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification) { break }
             let premiere = PremiereModel(browserModel: browserModel, installed: [.arc], isDefaultBrowser: false,
                                          prefetched: [profile(icons: directory.appendingPathComponent("icons"))])
             premiere.onFinish = { [weak browserModel] in
                 withAnimation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.45)) { browserModel?.premiere = nil }
             }
             browserModel.premiere = premiere
-
-            func wait(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
-            await wait(3.4); premiere.next()                       // intro → Bring
-            await wait(2.0); premiere.runImport()
-            await wait(2.4); premiere.next()                       // → Pick a color
-            await wait(1.5)
-            for color in premiere.arcTints.dropFirst() + PremiereModel.curatedTints.prefix(3) {
-                premiere.pick(color); await wait(1.15)
+            await NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.2
+                window.animator().alphaValue = 1
             }
-            if let first = premiere.arcTints.first { premiere.pick(first) }
-            await wait(1.4); premiere.next()                       // → default browser
-            await wait(2.0); premiere.next()                       // "Not now" → Welcome home
-            await wait(3.6); premiere.finish()
-            await wait(3)
         }
     }
 
