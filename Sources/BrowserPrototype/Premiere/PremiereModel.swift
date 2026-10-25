@@ -77,20 +77,20 @@ final class PremiereModel: ObservableObject {
     /// The browser was found but had nothing D'arce can bring over (or couldn't be read).
     var nothingToImport: Bool { profiles != nil && availableRows.isEmpty }
 
-    var bringTitle: String { "Bring your \(browser?.shortName ?? "browser") with you." }
+    var bringTitle: String { "Bring your \(browser?.shortName ?? "browser")." }
     var arcTints: [AppearanceColor] {
         guard browser == .arc else { return [] }
         return (profiles ?? []).flatMap { $0.spaces.compactMap(\.tint) }.reduce(into: []) { if !$0.contains($1) { $0.append($1) } }
     }
     var themeSubtitle: String {
-        arcTints.isEmpty ? "Every Space gets its own." : "Every Space gets its own. We started you with the ones from your Arc."
+        "Each Space has its own."
     }
     var welcomeSubtitle: String {
         let spaces: Bool
         if startedFresh { spaces = false }
         else if let outcome { spaces = outcome.counts["spaces", default: 0] > 0 }
         else { spaces = browser == .arc && (profiles ?? []).contains { !$0.spaces.isEmpty } }
-        return spaces ? "Your Spaces are where you left them. ⌘T opens anything." : "⌘T opens anything."
+        return spaces ? "Everything’s where you left it. ⌘T opens anything." : "⌘T opens anything."
     }
 
     // MARK: What the import would bring
@@ -124,7 +124,7 @@ final class PremiereModel: ObservableObject {
     func title(_ row: Row) -> String {
         switch row {
         case .spaces: "Spaces & pinned tabs"
-        case .favorites: browser == .arc ? "Favorites" : "Favorites from your most-visited sites"
+        case .favorites: browser == .arc ? "Favorites" : "Favorites (your most-visited sites)"
         case .bookmarks: "Bookmarks"
         case .history: "History"
         case .cookies: "Stay signed in"
@@ -285,7 +285,7 @@ final class PremiereModel: ObservableObject {
             guard let self, self.browser == browser else { return }
             switch result {
             case .success(let found): self.profiles = found; self.readError = nil
-            case .failure(let error): self.profiles = []; self.readError = "Couldn't read \(browser.shortName): \(error.localizedDescription)"
+            case .failure(let error): self.profiles = []; self.readError = "Couldn’t read \(browser.shortName): \(error.localizedDescription)"
             }
             if let first = self.arcTints.first { self.tint = first }
         }
@@ -336,7 +336,7 @@ final class PremiereModel: ObservableObject {
     /// What a finished import says when the person has already moved on.
     static func lateImportNote(_ outcome: ImportOutcome, browser: ImportBrowser) -> BrowserToast {
         guard outcome.saved else {
-            return BrowserToast(title: "Your \(browser.shortName) didn't come over", message: outcome.skipped.first ?? "It couldn't be saved.")
+            return BrowserToast(title: "Your \(browser.shortName) didn’t come over", message: outcome.skipped.first ?? "It couldn’t be saved.")
         }
         let names: [(String, String, String)] = [("spaces", "Space", "Spaces"), ("tabs", "tab", "tabs"), ("favorites", "Favorite", "Favorites"),
                                                  ("bookmarks", "bookmark", "bookmarks"), ("history", "history site", "history sites"),
@@ -348,7 +348,7 @@ final class PremiereModel: ObservableObject {
         var message = parts.isEmpty ? "Nothing new came over." : (parts.count == 1 ? parts[0]
             : parts.dropLast().joined(separator: ", ") + " and " + parts.last!) + " came over."
         if !outcome.skipped.isEmpty {
-            message += " \(outcome.skipped.count) \(outcome.skipped.count == 1 ? "thing" : "things") didn't come over."
+            message += " \(outcome.skipped.count) \(outcome.skipped.count == 1 ? "thing" : "things") didn’t come over."
         }
         return BrowserToast(title: "Your \(browser.shortName) is in", message: message)
     }

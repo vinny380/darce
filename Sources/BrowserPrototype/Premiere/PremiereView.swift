@@ -11,7 +11,7 @@ struct PremiereView: View {
 
     var body: some View {
         ZStack {
-            PremiereBackground(tint: model.tint, orb: step == .intro ? 0.55 : 0.16)
+            PremiereBackground(tint: model.tint)
             content
                 .id(step)
                 .transition(stepTransition)
@@ -27,7 +27,7 @@ struct PremiereView: View {
                     .buttonStyle(QuietButtonStyle()).help(model.muted ? "Play music (M)" : "Mute music (M)")
                     .accessibilityLabel(model.muted ? "Play music" : "Mute music")
                     if step != .welcome {
-                        Button("Skip setup", action: model.skipSetup).buttonStyle(QuietButtonStyle()).help("Go straight to D'arce (⌥esc)")
+                        Button("Skip setup", action: model.skipSetup).buttonStyle(QuietButtonStyle()).help("Go straight to D’arce (⌥esc)")
                     }
                 }
                 Spacer()
@@ -121,38 +121,17 @@ extension View {
     func rise(_ index: Int) -> some View { modifier(Rise(index: index)) }
 }
 
+/// One flat, rich field of the Space's color; picking a swatch repaints it.
 struct PremiereBackground: View {
     var tint: AppearanceColor
-    var orb: Double
-    @State private var turning = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private func color(_ scale: Double) -> Color {
-        Color(.sRGB, red: tint.red * scale, green: tint.green * scale, blue: tint.blue * scale)
-    }
 
     var body: some View {
-        ZStack {
-            RadialGradient(colors: [color(1), color(0.36), color(0.13)], center: UnitPoint(x: 0.28, y: 0.18),
-                           startRadius: 0, endRadius: 980)
-            // One long rotation the render server runs on its own, so the import's main-thread work can't stutter it.
-            Circle()
-                .fill(AngularGradient(colors: [Color(red: 0.71, green: 0.55, blue: 1), Color(red: 1, green: 0.56, blue: 0.69),
-                                               Color(red: 1, green: 0.82, blue: 0.54), Color(red: 0.56, green: 0.84, blue: 1),
-                                               Color(red: 0.71, green: 0.55, blue: 1)], center: .center))
-                .frame(width: 520, height: 520)
-                .rotationEffect(.degrees(turning ? 360 : 0))
-                .blur(radius: 60)
-                .opacity(orb)
-                .onAppear {
-                    guard !reduceMotion else { return }
-                    withAnimation(.linear(duration: 14).repeatForever(autoreverses: false)) { turning = true }
-                }
-                .accessibilityHidden(true)
-        }
-        .animation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.6), value: tint)
-        .animation(.easeOut(duration: 0.8), value: orb)
-        .ignoresSafeArea()
+        // Richer than the raw tint: pushed away from grey, then deepened so white text sits well on it.
+        let gray = 0.3 * tint.red + 0.59 * tint.green + 0.11 * tint.blue
+        let rich = { (value: Double) in min(max((gray + (value - gray) * 1.45) * 0.6, 0), 1) }
+        return Color(.sRGB, red: rich(tint.red), green: rich(tint.green), blue: rich(tint.blue))
+            .animation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.6), value: tint)
+            .ignoresSafeArea()
     }
 }
 
@@ -176,15 +155,12 @@ struct ProgressPills: View {
 
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 10) {
-            configuration.label
-            Text("↵").font(.system(size: 11, weight: .semibold)).opacity(0.4)
-        }
-        .font(.system(size: 15, weight: .semibold))
+        configuration.label
+        .font(.system(size: 15, weight: .medium))
         .foregroundStyle(Color(red: 0.11, green: 0.08, blue: 0.16))
-        .padding(.horizontal, 20).padding(.vertical, 12)
-        .background(.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .shadow(color: .black.opacity(0.25), radius: 10, y: 6)
+        .padding(.horizontal, 18).padding(.vertical, 10)
+        .background(.white, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
         .scaleEffect(configuration.isPressed ? 0.97 : 1)
         .animation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.14), value: configuration.isPressed)
     }
@@ -194,8 +170,8 @@ struct LinkButtonStyle: ButtonStyle {
     @State private var hovering = false
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 14.5))
-            .foregroundStyle(Color.white.opacity(hovering ? 1 : 0.62))
+            .font(.system(size: 15))
+            .foregroundStyle(Color.white.opacity(hovering ? 1 : 0.66))
             .padding(.vertical, 10).padding(.horizontal, 6)
             .contentShape(Rectangle())
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
@@ -218,25 +194,23 @@ struct QuietButtonStyle: ButtonStyle {
     }
 }
 
-struct StepLabel: View {
+struct Caption: View {
     var text: String
-    var body: some View {
-        Text(text.uppercased()).font(.system(size: 11.5, weight: .semibold)).tracking(0.9).foregroundStyle(Color.white.opacity(0.5))
-    }
+    var body: some View { Text(text).font(.system(size: 12.5)).foregroundStyle(Color.white.opacity(0.55)) }
 }
 
 struct StepTitle: View {
     var text: String
     var body: some View {
-        Text(text).font(.system(size: 34, weight: .bold)).tracking(-0.68).lineSpacing(-2).fixedSize(horizontal: false, vertical: true)
+        Text(text).font(.system(size: 30, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
     }
 }
 
 struct StepSubtitle: View {
     var text: String
     var body: some View {
-        Text(text).font(.system(size: 16)).lineSpacing(5).foregroundStyle(Color.white.opacity(0.72))
-            .frame(maxWidth: 380, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+        Text(text).font(.system(size: 15)).lineSpacing(4).foregroundStyle(Color.white.opacity(0.68))
+            .frame(maxWidth: 360, alignment: .leading).fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -248,16 +222,15 @@ struct PremiereIntro: View {
     var body: some View {
         VStack(spacing: 18) {
             HStack(spacing: 0) {
-                ForEach(Array("D'arce".enumerated()), id: \.offset) { index, letter in
+                ForEach(Array("D’arce".enumerated()), id: \.offset) { index, letter in
                     Text(String(letter))
                         .modifier(Rise(index: index, blur: 14, distance: 14, start: 0.12, spacing: 0.07, duration: 0.9))
                 }
             }
-            .font(.system(size: 84, weight: .heavy)).tracking(-3.4)
-            .accessibilityElement().accessibilityLabel("D'arce")
-            Text("Spaces, a sidebar that tidies itself, and everything you loved about Arc. Rebuilt for your Mac.")
-                .font(.system(size: 16)).lineSpacing(5).foregroundStyle(Color.white.opacity(0.72))
-                .multilineTextAlignment(.center).frame(maxWidth: 420)
+            .font(.system(size: 76, weight: .semibold))
+            .accessibilityElement().accessibilityLabel("D’arce")
+            Text("Arc’s best ideas, rebuilt for your Mac.")
+                .font(.system(size: 15)).foregroundStyle(Color.white.opacity(0.68))
                 .modifier(Rise(index: 0, start: 0.75))
             Button("Get started", action: model.next).buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
                 .modifier(Rise(index: 1, start: 0.75))
@@ -272,19 +245,16 @@ struct PremiereBring: View {
     var body: some View {
         HStack(alignment: .center, spacing: 56) {
             VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    StepLabel(text: "Found on this Mac")
-                    if model.installed.count > 1, !model.importing, !model.imported {
-                        Menu {
-                            ForEach(model.installed, id: \.self) { browser in Button(browser.displayName) { model.choose(browser) } }
-                        } label: { Text("Import from another browser").font(.system(size: 11.5)) }
-                        .menuStyle(.borderlessButton).fixedSize().opacity(0.7)
-                    }
-                }.rise(0)
-                StepTitle(text: model.bringTitle).rise(1)
-                StepSubtitle(text: "Everything comes over in one go, exactly where you left it. Nothing leaves your Mac.").rise(2)
-                rows.rise(3)
-                actions.rise(4)
+                StepTitle(text: model.bringTitle).rise(0)
+                StepSubtitle(text: "Spaces, tabs and sign-ins, right where you left them. Nothing leaves this Mac.").rise(1)
+                rows.rise(2)
+                actions.rise(3)
+                if model.installed.count > 1, !model.importing, !model.imported {
+                    Menu {
+                        ForEach(model.installed, id: \.self) { browser in Button(browser.displayName) { model.choose(browser) } }
+                    } label: { Text("Import from another browser").font(.system(size: 12.5)) }
+                    .menuStyle(.borderlessButton).fixedSize().opacity(0.6).rise(4)
+                }
             }
             .frame(maxWidth: 440, alignment: .leading)
             PreviewSidebar(model: model, filled: model.state(.spaces) == .done || model.state(.favorites) == .done || model.imported)
@@ -294,17 +264,17 @@ struct PremiereBring: View {
 
     @ViewBuilder private var rows: some View {
         if model.nothingToImport {
-            Text(model.readError ?? "\(model.browser?.shortName ?? "That browser") has nothing D'arce can bring over yet.")
+            Text(model.readError ?? "\(model.browser?.shortName ?? "That browser") has nothing D’arce can bring over yet.")
                 .font(.system(size: 14.5)).foregroundStyle(Color.white.opacity(0.7)).padding(.vertical, 8)
         } else if model.profiles == nil {
             HStack(spacing: 10) { ProgressView().controlSize(.small); Text("Looking at \(model.browser?.shortName ?? "your browser")…").opacity(0.7) }
-                .font(.system(size: 14.5)).padding(.vertical, 8)
+                .font(.system(size: 15)).padding(.vertical, 8)
         } else {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(model.availableRows, id: \.self) { row in
                     ImportRow(model: model, row: row)
                     if row == .cookies, model.isOn(.cookies), !model.imported {
-                        Text("macOS will ask for your password once, so D'arce can read them.")
+                        Text("macOS asks for your password once to read these.")
                             .font(.system(size: 12.5)).foregroundStyle(Color.white.opacity(0.55)).padding(.leading, 52).padding(.bottom, 4)
                     }
                     if row == .extensions, choosing, !model.importing, !model.imported {
@@ -327,7 +297,7 @@ struct PremiereBring: View {
                     .buttonStyle(LinkButtonStyle()).padding(.leading, 46)
                 }
                 ForEach(model.problems.prefix(3), id: \.self) { problem in
-                    Text(problem).font(.system(size: 12)).foregroundStyle(Color.white.opacity(0.55)).lineLimit(1)
+                    Text(problem).font(.system(size: 12.5)).foregroundStyle(Color.white.opacity(0.55)).lineLimit(1)
                 }
             }
         }
@@ -340,7 +310,7 @@ struct PremiereBring: View {
             } else if model.nothingToImport {
                 Button("Start fresh", action: model.startFresh).buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
             } else {
-                Button(model.importing ? "Bringing it over…" : "Bring it all over", action: model.runImport)
+                Button(model.importing ? "Bringing it over…" : "Bring it over", action: model.runImport)
                     .buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
                     .disabled(model.importing || model.profiles == nil)
                 if !model.importing { Button("Start fresh", action: model.startFresh).buttonStyle(LinkButtonStyle()) }
@@ -367,9 +337,9 @@ struct ImportRow: View {
                 }
             }
             .frame(width: 34, alignment: .leading)
-            Text(model.title(row)).font(.system(size: 14.5)).opacity(model.isOn(row) ? 1 : 0.5)
+            Text(model.title(row)).font(.system(size: 15)).opacity(model.isOn(row) ? 1 : 0.5)
             Spacer(minLength: 12)
-            Text(model.detail(row)).font(.system(size: 13.5)).monospacedDigit().foregroundStyle(Color.white.opacity(0.55))
+            Text(model.detail(row)).font(.system(size: 15)).monospacedDigit().foregroundStyle(Color.white.opacity(0.5))
         }
         .padding(.vertical, 8).padding(.horizontal, 10)
         .background(Color.white.opacity(hovering ? 0.05 : 0), in: RoundedRectangle(cornerRadius: 10))
@@ -462,12 +432,8 @@ struct PreviewSidebar: View {
         }
         .padding(.horizontal, 14).padding(.vertical, 16)
         .frame(width: 300, height: 420)
-        .background {
-            if reduceTransparency { RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(white: 0.18)) }
-            else { RoundedRectangle(cornerRadius: 18, style: .continuous).fill(.ultraThinMaterial).opacity(0.55) }
-        }
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.white.opacity(0.12)))
-        .shadow(color: .black.opacity(0.3), radius: 30, y: 20)
+        .background(Color.white.opacity(reduceTransparency ? 0.14 : 0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.12)))
         .accessibilityElement().accessibilityLabel("Preview of your sidebar")
     }
 }
@@ -479,22 +445,20 @@ struct PremiereTheme: View {
     var body: some View {
         HStack(alignment: .center, spacing: 56) {
             VStack(alignment: .leading, spacing: 16) {
-                StepLabel(text: "Make it yours").rise(0)
-                StepTitle(text: "Pick a color for this Space.").rise(1)
-                StepSubtitle(text: model.themeSubtitle).rise(2)
-                VStack(alignment: .leading, spacing: 10) {
+                StepTitle(text: "Pick a color.").rise(0)
+                StepSubtitle(text: model.themeSubtitle).rise(1)
+                VStack(alignment: .leading, spacing: 12) {
                     if !model.arcTints.isEmpty {
-                        StepLabel(text: "From your Arc")
-                        swatches(model.arcTints)
+                        Caption(text: "From your Arc")
+                        swatches(model.arcTints).padding(.bottom, 6)
                     }
-                    StepLabel(text: "More").padding(.top, 4)
                     swatches(PremiereModel.curatedTints)
-                }.rise(3)
-                appearance.rise(4)
+                }.rise(2)
+                appearance.rise(3)
                 HStack(spacing: 14) {
                     Button("Looks good", action: model.next).buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
                     Button("Choose later", action: model.next).buttonStyle(LinkButtonStyle())
-                }.padding(.top, 4).rise(5)
+                }.padding(.top, 4).rise(4)
             }
             .frame(maxWidth: 440, alignment: .leading)
             PreviewSidebar(model: model, filled: true)
@@ -508,10 +472,9 @@ struct PremiereTheme: View {
                 let selected = color == model.tint
                 Button { model.pick(color) } label: {
                     Circle()
-                        .fill(RadialGradient(colors: [Color(.sRGB, red: color.red, green: color.green, blue: color.blue),
-                                                      Color(.sRGB, red: color.red * 0.4, green: color.green * 0.4, blue: color.blue * 0.4)],
-                                             center: UnitPoint(x: 0.3, y: 0.3), startRadius: 0, endRadius: 30))
-                        .frame(width: 40, height: 40)
+                        .fill(Color(.sRGB, red: color.red, green: color.green, blue: color.blue))
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.15)))
+                        .frame(width: 34, height: 34)
                         .padding(5)
                         .overlay(Circle().strokeBorder(Color.white.opacity(selected ? 1 : 0), lineWidth: 2))
                         .scaleEffect(selected ? 1.04 : 1)
@@ -527,7 +490,7 @@ struct PremiereTheme: View {
         HStack(spacing: 0) {
             ForEach([(BrowserAppearance.system, "Auto"), (.light, "Light"), (.dark, "Dark")], id: \.0) { mode, title in
                 Button { withAnimation(.spring(response: 0.42, dampingFraction: 0.8)) { model.mode = mode } } label: {
-                    Text(title).font(.system(size: 13.5, weight: .medium))
+                    Text(title).font(.system(size: 12.5, weight: .medium))
                         .foregroundStyle(model.mode == mode ? Color(red: 0.11, green: 0.08, blue: 0.16) : Color.white.opacity(0.7))
                         .padding(.horizontal, 14).padding(.vertical, 7)
                         .background {
@@ -557,20 +520,19 @@ struct PremiereDefaultBrowser: View {
     var body: some View {
         HStack(alignment: .center, spacing: 56) {
             VStack(alignment: .leading, spacing: 16) {
-                StepLabel(text: "One more thing").rise(0)
-                StepTitle(text: "Open links from other apps in D'arce?").rise(1)
-                StepSubtitle(text: "Links from Messages, Slack and Mail open in a small window. One click moves the page into your sidebar.").rise(2)
+                StepTitle(text: "Make D’arce your browser?").rise(0)
+                StepSubtitle(text: "Links from Messages, Slack and Mail open in a small window. One click keeps the page.").rise(1)
                 HStack(spacing: 14) {
                     if model.defaultState == .done {
                         Button("Continue", action: model.next).buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
                     } else {
-                        Button("Make D'arce my browser", action: model.makeDefault).buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
+                        Button("Make default", action: model.makeDefault).buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
                             .disabled(model.defaultState == .asking)
-                        Button("Not yet", action: model.next).buttonStyle(LinkButtonStyle())
+                        Button("Not now", action: model.next).buttonStyle(LinkButtonStyle())
                     }
-                }.padding(.top, 4).rise(3)
+                }.padding(.top, 4).rise(2)
                 Text(note).font(.system(size: 12.5)).foregroundStyle(Color.white.opacity(0.55))
-                    .contentTransition(.opacity).animation(.easeOut(duration: 0.2), value: model.defaultState).rise(4)
+                    .contentTransition(.opacity).animation(.easeOut(duration: 0.2), value: model.defaultState).rise(3)
             }
             .frame(maxWidth: 440, alignment: .leading)
             LinkIllustration(opened: model.defaultState == .done)
@@ -581,8 +543,8 @@ struct PremiereDefaultBrowser: View {
     private var note: String {
         switch model.defaultState {
         case .idle, .asking: "macOS will ask you to confirm."
-        case .done: "Done. Links now open in D'arce."
-        case .declined: "No problem, you can change this in Settings."
+        case .done: "Done. Links open in D’arce now."
+        case .declined: "No problem. It’s in Settings whenever you want it."
         }
     }
 }
@@ -608,7 +570,7 @@ struct LinkIllustration: View {
             .padding(12)
             .frame(width: 210, height: 150, alignment: .topLeading)
             .background(Color(red: 0.965, green: 0.953, blue: 0.98), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(color: .black.opacity(0.35), radius: 25, y: 20)
+            .shadow(color: .black.opacity(0.22), radius: 14, y: 8)
             .scaleEffect(opened ? 1 : 0.7, anchor: .topLeading)
             .offset(x: opened ? 110 : 50, y: opened ? 140 : 80)
             .opacity(opened ? 1 : 0)
@@ -624,9 +586,9 @@ struct PremiereWelcome: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("Welcome home.").font(.system(size: 46, weight: .bold)).tracking(-1.15).rise(0)
-            Text(model.welcomeSubtitle).font(.system(size: 16)).foregroundStyle(Color.white.opacity(0.72)).rise(1)
-            Button("Open D'arce") { model.finish() }.buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
+            Text("Welcome home.").font(.system(size: 44, weight: .semibold)).rise(0)
+            Text(model.welcomeSubtitle).font(.system(size: 15)).foregroundStyle(Color.white.opacity(0.68)).rise(1)
+            Button("Open D’arce") { model.finish() }.buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
                 .padding(.top, 6).rise(2)
         }
     }

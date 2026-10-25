@@ -202,9 +202,9 @@ func runPremiereSmoke() -> [String: Bool] {
     }
     return [
         "premiere_steps_render": laidOut,
-        "premiere_copy_for_arc": withArc.bringTitle == "Bring your Arc with you." && withArc.arcTints.count == 1
-            && withArc.welcomeSubtitle.hasPrefix("Your Spaces are where you left them."),
-        "premiere_copy_for_chrome": withChrome.bringTitle == "Bring your Chrome with you." && withChrome.arcTints.isEmpty,
+        "premiere_copy_for_arc": withArc.bringTitle == "Bring your Arc." && withArc.arcTints.count == 1
+            && withArc.welcomeSubtitle.hasPrefix("Everything’s where you left it."),
+        "premiere_copy_for_chrome": withChrome.bringTitle == "Bring your Chrome." && withChrome.arcTints.isEmpty,
         "premiere_without_browsers_skips_bring_and_default": withNothing.flow.steps == [.intro, .theme, .welcome]
             && withNothing.welcomeSubtitle == "⌘T opens anything.",
     ]
@@ -265,8 +265,8 @@ func runPremiereReviewSmoke() -> [String: Bool] {
     let empty = PremiereModel(browserModel: browser, installed: [.chrome], isDefaultBrowser: false, prefetched: [], music: false)
     return [
         "premiere_tint_only_written_when_picked": tintKept,
-        "premiere_late_import_note_is_honest": failedNote.title == "Your Chrome didn't come over" && failedNote.message == "Nothing could be saved."
-            && partialNote.message == "2 Spaces, 1 tab and 300 history sites came over. 1 thing didn't come over.",
+        "premiere_late_import_note_is_honest": failedNote.title == "Your Chrome didn’t come over" && failedNote.message == "Nothing could be saved."
+            && partialNote.message == "2 Spaces, 1 tab and 300 history sites came over. 1 thing didn’t come over.",
         "premiere_nothing_to_import_offers_start_fresh": empty.nothingToImport,
     ]
 }
