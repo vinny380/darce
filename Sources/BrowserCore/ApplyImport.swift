@@ -41,6 +41,8 @@ public struct ImportOutcome: Equatable, Sendable {
     /// Source profile key → the D'arce profile it went into, and which of those this import created.
     public var profileIDs: [String: UUID] = [:]
     public var newProfileIDs: Set<UUID> = []
+    /// False when the sidebar couldn't be saved, so nothing else from the import should be applied either.
+    public var saved = true
     public init() {}
 }
 

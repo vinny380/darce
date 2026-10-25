@@ -1,6 +1,7 @@
 import AppKit
 import BrowserCore
 import SwiftUI
+import WebKit
 
 /// What an import brought over, for the result screen and `--import-from`'s `import-result.json`.
 struct ImportReport: Codable, Equatable {
@@ -35,6 +36,7 @@ extension BrowserModel {
         var applied = ImportOutcome()
         guard stateUpdate({ applied = $0.applyImport(profiles, from: browser, into: destination, options: options) }) else {
             var failed = ImportOutcome()
+            failed.saved = false
             failed.skipped = ["Nothing could be saved. D'arce can't write its session right now; recover it, then import again."]
             return failed
         }
@@ -64,12 +66,62 @@ extension BrowserModel {
         return outcome
     }
 
+    /// After the sidebar: cookies into each profile's WebKit store (reading them needs the keychain, so macOS asks
+    /// the user), then extensions. A denied keychain only costs the cookies.
+    func completeBrowserImport(_ profiles: [ImportedProfile], from browser: ImportBrowser, options: ImportOptions,
+                               outcome: ImportOutcome, secret: @escaping @Sendable () throws -> Data) async -> ImportOutcome {
+        var outcome = outcome
+        guard outcome.saved else { return outcome }
+        if options.cookies, profiles.contains(where: { $0.cookieCount > 0 }) {
+            let read = await Task.detached { ImportSources.cookies(profiles, browser: browser, secret: secret) }.value
+            outcome.skipped += read.skipped
+            _ = await applyImportedCookies(read.cookies, outcome: &outcome, options: options)
+        }
+        var seen: Set<String> = []
+        let extensions = profiles.flatMap(\.extensions).filter { seen.insert($0.id).inserted }
+        if options.extensions, !extensions.isEmpty {
+            if #available(macOS 15.4, *), let manager = ExtensionManager.shared {
+                let result = await manager.installImported(extensions)
+                outcome.counts["extensions", default: 0] += result.installed
+                outcome.skipped += result.skipped
+            } else {
+                outcome.skipped.append("Extensions need macOS 15.4 or later")
+            }
+        }
+        return outcome
+    }
+
+    /// Writes imported cookies into each D'arce profile's store. Replacing (the default for profiles this import
+    /// created) clears that profile's cookies first; WebKit replaces a cookie with the same domain, name and path.
+    @discardableResult
+    func applyImportedCookies(_ cookies: [String: [ImportedCookie]], outcome: inout ImportOutcome, options: ImportOptions) async -> Int {
+        var total = 0
+        for (key, list) in cookies.sorted(by: { $0.key < $1.key }) {
+            guard let profileID = outcome.profileIDs[key] else { continue }
+            let store = dataStore(for: profileID)
+            if options.replaceCookies ?? outcome.newProfileIDs.contains(profileID) {
+                await store.removeData(ofTypes: [WKWebsiteDataTypeCookies], modifiedSince: .distantPast)
+            }
+            for cookie in list {
+                guard let value = HTTPCookie(properties: cookie.webKitProperties) else { continue }
+                await store.httpCookieStore.setCookie(value)
+                total += 1
+            }
+        }
+        outcome.counts["cookies", default: 0] += total
+        return total
+    }
+
     /// `--import-from <browser>`: imports everything into new profiles without asking, for end-to-end checks.
     func importWithoutAsking(from browser: ImportBrowser) async -> ImportReport {
         let home = FileManager.default.homeDirectoryForCurrentUser
         do {
             let profiles = try await Task.detached { try ImportSources.read(browser, home: home) }.value
-            let outcome = applyBrowserImport(profiles, from: browser, into: .newProfiles, options: ImportOptions())
+            var outcome = applyBrowserImport(profiles, from: browser, into: .newProfiles, options: ImportOptions())
+            let keychain = browser.safeStorage
+            outcome = await completeBrowserImport(profiles, from: browser, options: ImportOptions(), outcome: outcome) {
+                try SafeStorage.secret(service: keychain.service, account: keychain.account)
+            }
             return ImportReport(counts: outcome.counts, skipped: outcome.skipped)
         } catch {
             return ImportReport(counts: [:], skipped: ["\(browser.displayName) could not be read: \(error.localizedDescription)"])
@@ -150,6 +202,9 @@ struct ImportSheet: View {
         let spaces = selected.reduce(0) { $0 + $1.spaces.count }
         let bookmarks = selected.reduce(0) { $0 + count($1.bookmarks) }
         let history = selected.reduce(0) { $0 + $1.history.count }
+        let cookies = selected.reduce(0) { $0 + $1.cookieCount }
+        var seen: Set<String> = []
+        let extensions = selected.flatMap(\.extensions).filter { seen.insert($0.id).inserted }
         return VStack(alignment: .leading, spacing: 14) {
             if profiles.count > 1 {
                 VStack(alignment: .leading, spacing: 6) {
@@ -176,6 +231,23 @@ struct ImportSheet: View {
                 if browser == .arc { Toggle("Spaces & tabs (\(spaces) Spaces, \(tabs) tabs)", isOn: $options.spacesAndTabs) }
                 if bookmarks > 0 || browser != .arc { Toggle("Bookmarks (\(bookmarks))", isOn: $options.bookmarks) }
                 Toggle("History (\(history) sites)", isOn: $options.history)
+                if cookies > 0 {
+                    Toggle("Stay signed in to websites (\(cookies) cookies)", isOn: $options.cookies)
+                    if options.cookies {
+                        Toggle("Replace cookies D'arce already has", isOn: Binding(get: { options.replaceCookies ?? intoNewProfiles },
+                                                                                  set: { options.replaceCookies = $0 }))
+                            .padding(.leading, 20).font(.callout)
+                    }
+                }
+                if !extensions.isEmpty {
+                    Toggle("Extensions (\(extensions.count))", isOn: $options.extensions)
+                    Text(extensions.map(\.name).joined(separator: ", ")).font(.caption).foregroundStyle(.secondary)
+                        .padding(.leading, 20).lineLimit(3)
+                }
+                if cookies > 0, options.cookies {
+                    Text("macOS will ask for your login password so D'arce can read the cookies \(browser.displayName) saved. They stay on this Mac.")
+                        .font(.caption).foregroundStyle(.secondary).padding(.top, 4)
+                }
             }
             HStack {
                 Button("Back") { step = .pick }
@@ -188,7 +260,8 @@ struct ImportSheet: View {
 
     private func result(_ outcome: ImportOutcome) -> some View {
         let lines: [(String, String)] = [("spaces", "Spaces"), ("tabs", "Tabs"), ("favorites", "Favorites"), ("folders", "Folders"),
-                                         ("bookmarks", "Bookmarks"), ("history", "History")]
+                                         ("bookmarks", "Bookmarks"), ("history", "History"), ("cookies", "Cookies"),
+                                         ("extensions", "Extensions")]
         return VStack(alignment: .leading, spacing: 12) {
             let nothing = outcome.counts.values.allSatisfy { $0 == 0 }
             Text(outcome.skipped.isEmpty ? "Success! Everything came over" : nothing ? "Nothing came over" : "Most of your stuff came over")
@@ -232,9 +305,13 @@ struct ImportSheet: View {
     private func commit(_ browser: ImportBrowser, _ profiles: [ImportedProfile]) {
         step = .importing
         let destination: ImportDestination = intoNewProfiles ? .newProfiles : .existing(model.state.selectedProfileID)
+        let options = options, keychain = browser.safeStorage
         Task { @MainActor in
             await Task.yield()   // let the progress row draw before the main-actor commit
-            step = .done(model.applyBrowserImport(profiles, from: browser, into: destination, options: options))
+            let outcome = model.applyBrowserImport(profiles, from: browser, into: destination, options: options)
+            step = .done(await model.completeBrowserImport(profiles, from: browser, options: options, outcome: outcome) {
+                try SafeStorage.secret(service: keychain.service, account: keychain.account)
+            })
         }
     }
 
@@ -245,5 +322,20 @@ struct ImportSheet: View {
             case .folder(_, _, let children), .split(_, let children, _): total + count(children)
             }
         }
+    }
+}
+
+extension ImportedCookie {
+    var webKitProperties: [HTTPCookiePropertyKey: Any] {
+        var properties: [HTTPCookiePropertyKey: Any] = [.domain: domain, .path: path, .name: name, .value: value]
+        if let expires { properties[.expires] = expires } else { properties[.discard] = "TRUE" }
+        if secure { properties[.secure] = "TRUE" }
+        if httpOnly { properties[HTTPCookiePropertyKey("HttpOnly")] = "TRUE" }
+        switch sameSite {
+        case "lax": properties[.sameSitePolicy] = HTTPCookieStringPolicy.sameSiteLax
+        case "strict": properties[.sameSitePolicy] = HTTPCookieStringPolicy.sameSiteStrict
+        default: break
+        }
+        return properties
     }
 }

@@ -81,6 +81,9 @@ func runSmoke(model: BrowserModel, output: URL) async {
         for (name, passed) in runBrowserImportSmoke().sorted(by: { $0.key < $1.key }) { try check(name, passed) }
         for (name, passed) in runUnsavedImportSmoke().sorted(by: { $0.key < $1.key }) { try check(name, passed) }
         for (name, passed) in await runUserAgentSmoke().sorted(by: { $0.key < $1.key }) { try check(name, passed) }
+        for (name, passed) in await runImportCookiesSmoke().sorted(by: { $0.key < $1.key }) { try check(name, passed) }
+        for (name, passed) in await runDeniedKeychainSmoke().sorted(by: { $0.key < $1.key }) { try check(name, passed) }
+        for (name, passed) in await runImportExtensionSmoke().sorted(by: { $0.key < $1.key }) { try check(name, passed) }
         try check("reject javascript URL", BrowserModel.destination("javascript:alert(1)") == nil)
         try check("reject file URL", BrowserModel.destination("file:///etc/hosts") == nil)
         let query = BrowserModel.destination("swift & spaces")

@@ -90,19 +90,39 @@ final class ExtensionManager: NSObject, ObservableObject, WKWebExtensionControll
     /// A Chrome Web Store link (or bare id): download the package Chrome would, unpack it, confirm, load.
     func install(fromStoreLink text: String) async {
         guard let id = CRXFile.extensionID(from: text) else { lastError = "That isn't a Chrome Web Store link."; return }
-        do {
-            let (data, response) = try await URLSession.shared.data(from: CRXFile.downloadURL(forExtensionID: id))
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CocoaError(.fileReadUnknown) }
-            let zip = try CRXFile.zipPayload(data)
-            let staging = FileManager.default.temporaryDirectory.appendingPathComponent("darce-ext-\(UUID().uuidString)")
-            defer { try? FileManager.default.removeItem(at: staging) }
-            try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
-            let archive = staging.appendingPathComponent("extension.zip")
-            try zip.write(to: archive)
-            let unpacked = staging.appendingPathComponent("unpacked", isDirectory: true)
-            try Self.unzip(archive, to: unpacked)
-            try await installFolder(unpacked, as: id)
-        } catch { lastError = "Couldn't install that extension: \(error.localizedDescription)" }
+        do { try await installFromStore(id: id, confirm: true) }
+        catch { lastError = "Couldn't install that extension: \(error.localizedDescription)" }
+    }
+
+    private func installFromStore(id: String, confirm: Bool) async throws {
+        let request = URLRequest(url: CRXFile.downloadURL(forExtensionID: id), timeoutInterval: 30)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw CocoaError(.fileReadUnknown) }
+        let zip = try CRXFile.zipPayload(data)
+        let staging = FileManager.default.temporaryDirectory.appendingPathComponent("darce-ext-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: staging) }
+        try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+        let archive = staging.appendingPathComponent("extension.zip")
+        try zip.write(to: archive)
+        let unpacked = staging.appendingPathComponent("unpacked", isDirectory: true)
+        try Self.unzip(archive, to: unpacked)
+        try await installFolder(unpacked, as: id, confirm: confirm)
+    }
+
+    /// Extensions brought over from another browser. Ticking them in the import sheet was the consent, so there's no
+    /// alert. Uses the Chrome Web Store's package, else the browser's own copy of the files.
+    func installImported(_ extensions: [ImportedExtension]) async -> (installed: Int, skipped: [String]) {
+        var count = 0, skipped: [String] = []
+        for item in extensions where !installed.contains(where: { $0.id == item.id }) {
+            if (try? await installFromStore(id: item.id, confirm: false)) != nil { count += 1; continue }
+            guard let files = item.files else {
+                skipped.append("Extension “\(item.name)”: the Chrome Web Store doesn't offer it anymore")
+                continue
+            }
+            do { try await installFolder(files, as: item.id, confirm: false); count += 1 }
+            catch { skipped.append("Extension “\(item.name)”: \(error.localizedDescription)") }
+        }
+        return (count, skipped)
     }
 
     /// An unpacked extension folder (one with a manifest.json), copied in so the original can move.
@@ -111,9 +131,9 @@ final class ExtensionManager: NSObject, ObservableObject, WKWebExtensionControll
         catch { lastError = "Couldn't install that extension: \(error.localizedDescription)" }
     }
 
-    private func installFolder(_ source: URL, as id: String) async throws {
+    private func installFolder(_ source: URL, as id: String, confirm: Bool = true) async throws {
         let candidate = try await WKWebExtension(resourceBaseURL: source)
-        guard confirmInstall(candidate) else { return }
+        guard !confirm || confirmInstall(candidate) else { return }
         let destination = directory.appendingPathComponent(id, isDirectory: true)
         if let existing = installed.first(where: { $0.id == id }) { try? controller.unload(existing.context) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
