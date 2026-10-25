@@ -1,0 +1,40 @@
+import Foundation
+import Testing
+@testable import BrowserCore
+
+/// Finding installed browsers and reading one for import. Each test names the bug it catches.
+private func support(_ home: URL) -> URL { home.appendingPathComponent("Library/Application Support") }
+
+@Test func aFolderWithoutLocalStateIsNotInstalled() throws {
+    let home = try TemporaryDirectory()
+    try FileManager.default.createDirectory(at: support(home.url).appendingPathComponent("Google/Chrome/NativeMessagingHosts"),
+                                            withIntermediateDirectories: true)
+    try ChromiumFixture.localState([("Default", "Me")], at: support(home.url).appendingPathComponent("BraveSoftware/Brave-Browser"))
+    #expect(ImportSources.installed(home: home.url) == [.brave])
+}
+
+@Test func arcProfilesCarryTheirChromiumHistory() throws {
+    let home = try TemporaryDirectory()
+    let arc = support(home.url).appendingPathComponent("Arc")
+    try ChromiumFixture.localState([("Default", "Default")], at: arc.appendingPathComponent("User Data"))
+    try FileManager.default.createDirectory(at: arc, withIntermediateDirectories: true)
+    try ArcSidebarFixture.standard().data().write(to: arc.appendingPathComponent("StorableSidebar.json"))
+    try ChromiumFixture.history([("https://visited.example/", "Visited", Date())], in: arc.appendingPathComponent("User Data/Default"))
+    let profiles = try ImportSources.read(.arc, home: home.url)
+    let main = try #require(profiles.first { $0.key == "arc:Default" })
+    #expect(main.history.map(\.title) == ["Visited"])
+    #expect(main.spaces.count == 2)
+    #expect(profiles.first { $0.key == "arc:Profile 9" }?.history.isEmpty == true)
+}
+
+@Test func emptyProfilesAreDropped() throws {
+    let home = try TemporaryDirectory()
+    let chrome = support(home.url).appendingPathComponent("Google/Chrome")
+    try ChromiumFixture.localState([("Default", "Me"), ("Profile 1", "Empty")], at: chrome)
+    try ChromiumFixture.bookmarks(["bookmark_bar": [ChromiumFixture.url("A", "https://a.example/", guid: "g1")]],
+                                  in: chrome.appendingPathComponent("Default"))
+    try FileManager.default.createDirectory(at: chrome.appendingPathComponent("Profile 1"), withIntermediateDirectories: true)
+    let profiles = try ImportSources.read(.chrome, home: home.url)
+    #expect(profiles.map(\.key) == ["chrome:Default"])
+    #expect(profiles[0].name == "Me" && profiles[0].bookmarks.count == 1)
+}
