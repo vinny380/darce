@@ -32,6 +32,25 @@ public struct ImportedVisit: Equatable, Sendable {
     public init(url: URL, title: String, visitedAt: Date) { self.url = url; self.title = title; self.visitedAt = visitedAt }
 }
 
+/// A cookie read from another browser, decrypted, ready to hand to WebKit.
+public struct ImportedCookie: Equatable, Sendable {
+    public var domain: String
+    public var name: String
+    public var value: String
+    public var path: String
+    /// nil for a session cookie.
+    public var expires: Date?
+    public var secure: Bool
+    public var httpOnly: Bool
+    /// "lax", "strict", or nil.
+    public var sameSite: String?
+
+    public init(domain: String, name: String, value: String, path: String, expires: Date?, secure: Bool, httpOnly: Bool, sameSite: String?) {
+        self.domain = domain; self.name = name; self.value = value; self.path = path
+        self.expires = expires; self.secure = secure; self.httpOnly = httpOnly; self.sameSite = sameSite
+    }
+}
+
 public struct ImportedProfile: Equatable, Sendable {
     /// e.g. "arc:Default", "chrome:Profile 1".
     public var key: String

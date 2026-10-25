@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import SQLite3
 
@@ -80,6 +81,72 @@ public enum ChromiumReader {
             }
             guard step == SQLITE_ROW || step == SQLITE_DONE else { throw ReadError.unreadableDatabase }
             return visits
+        }
+    }
+
+    /// How many cookies there are to bring over, without decrypting anything (for the import sheet).
+    public static func cookieCount(profile: URL) -> Int {
+        guard FileManager.default.fileExists(atPath: profile.appendingPathComponent("Cookies").path) else { return 0 }
+        return (try? withCopy(of: "Cookies", in: profile) { db -> Int in
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(db, "SELECT count(*) FROM cookies WHERE top_frame_site_key = ''", -1, &statement, nil) == SQLITE_OK else { return 0 }
+            defer { sqlite3_finalize(statement) }
+            return sqlite3_step(statement) == SQLITE_ROW ? Int(sqlite3_column_int64(statement, 0)) : 0
+        }) ?? 0
+    }
+
+    /// The profile's cookies, decrypted with the browser's Safe Storage key. Partitioned cookies (which WebKit can't
+    /// keep apart) and expired ones are left out; rows that don't decrypt are counted.
+    public static func cookies(profile: URL, key: Data, now: Date = Date()) throws -> (cookies: [ImportedCookie], undecryptable: Int) {
+        guard FileManager.default.fileExists(atPath: profile.appendingPathComponent("Cookies").path) else { return ([], 0) }
+        return try withCopy(of: "Cookies", in: profile) { db in
+            var version = 0
+            var meta: OpaquePointer?
+            if sqlite3_prepare_v2(db, "SELECT value FROM meta WHERE key = 'version'", -1, &meta, nil) == SQLITE_OK,
+               sqlite3_step(meta) == SQLITE_ROW, let text = sqlite3_column_text(meta, 0) {
+                version = Int(String(cString: text)) ?? 0
+            }
+            sqlite3_finalize(meta)
+            var statement: OpaquePointer?
+            let sql = """
+                SELECT host_key, top_frame_site_key, name, value, encrypted_value, path, expires_utc,
+                       is_secure, is_httponly, has_expires, is_persistent, samesite FROM cookies
+                """
+            guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { throw ReadError.unreadableDatabase }
+            defer { sqlite3_finalize(statement) }
+            let latest = now.addingTimeInterval(400 * 86_400)   // the longest a cookie may live (RFC 6265bis)
+            var cookies: [ImportedCookie] = [], undecryptable = 0
+            var step = sqlite3_step(statement)
+            while step == SQLITE_ROW {
+                defer { step = sqlite3_step(statement) }
+                let text = { (column: Int32) in sqlite3_column_text(statement, column).map { String(cString: $0) } ?? "" }
+                let host = text(0)
+                guard text(1).isEmpty, !host.isEmpty else { continue }
+                var value = text(3)
+                let blobLength = Int(sqlite3_column_bytes(statement, 4))
+                if blobLength > 0, let bytes = sqlite3_column_blob(statement, 4) {
+                    guard var plain = SafeStorage.decrypt(Data(bytes: bytes, count: blobLength), key: key) else { undecryptable += 1; continue }
+                    // Version 24 puts SHA-256(host) in front of the value; strip it only when it's really there.
+                    let hash = Data(SHA256.hash(data: Data(host.utf8)))
+                    if version >= 24, plain.count >= 32, plain.prefix(32) == hash { plain = plain.dropFirst(32) }
+                    guard let decoded = String(data: plain, encoding: .utf8) else { undecryptable += 1; continue }
+                    value = decoded
+                }
+                let persistent = sqlite3_column_int(statement, 9) != 0 && sqlite3_column_int(statement, 10) != 0
+                var expires: Date?
+                if persistent {
+                    let seconds = Double(sqlite3_column_int64(statement, 6)) / 1_000_000 - 11_644_473_600
+                    let date = Date(timeIntervalSince1970: seconds)
+                    guard date > now else { continue }
+                    expires = min(date, latest)
+                }
+                let sameSite: String? = switch sqlite3_column_int(statement, 11) { case 1: "lax"; case 2: "strict"; default: nil }
+                cookies.append(ImportedCookie(domain: host, name: text(2), value: value, path: text(5).isEmpty ? "/" : text(5),
+                                              expires: expires, secure: sqlite3_column_int(statement, 7) != 0,
+                                              httpOnly: sqlite3_column_int(statement, 8) != 0, sameSite: sameSite))
+            }
+            guard step == SQLITE_DONE else { throw ReadError.unreadableDatabase }
+            return (cookies, undecryptable)
         }
     }
 
