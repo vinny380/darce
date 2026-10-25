@@ -10,7 +10,12 @@ private func boost(_ change: (inout BrowserBoost) -> Void = { _ in }) -> Browser
 }
 
 private func apply(_ matrix: [Double], _ rgb: [Double]) -> [Double] {
-    (0..<3).map { row in (0..<3).reduce(matrix[row * 5 + 4]) { $0 + matrix[row * 5 + $1] * rgb[$1] } }
+    // Spelled out step by step: Swift 6.3 (the CI runner's Xcode 26) times out type-checking the one-liner.
+    (0..<3).map { (row: Int) -> Double in
+        var value = matrix[row * 5 + 4]
+        for column in 0..<3 { value += matrix[row * 5 + column] * rgb[column] }
+        return value
+    }
 }
 
 private func close(_ a: [Double], _ b: [Double]) -> Bool { zip(a, b).allSatisfy { abs($0 - $1) < 0.02 } }
