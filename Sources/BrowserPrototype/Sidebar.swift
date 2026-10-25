@@ -21,6 +21,8 @@ struct BrowserSidebar: View {
     @State private var removalTarget: RemovalTarget?
     /// The drop zone under the pointer during a drag, so it can show where the tab will land.
     @State private var dropTarget: String?
+    /// Profiles that closed the empty-Favorites card, comma-separated (Arc keeps this per profile too).
+    @AppStorage("favoritesEmptyStateDismissedForProfiles") private var favoritesHintDismissed = ""
     /// The tab being dragged from this sidebar, so drop previews can show it.
     @State private var draggingTab: UUID?
     @State private var headerHovered = false
@@ -264,7 +266,46 @@ struct BrowserSidebar: View {
 
     private var favorites: some View {
         let tabs = model.state.visibleTabs.filter { $0.kind == .favorite }
-        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 3), spacing: 7) {
+        let profile = model.state.selectedProfileID.uuidString
+        let showsHint = tabs.isEmpty && !favoritesHintDismissed.split(separator: ",").contains(Substring(profile))
+        return Group {
+            if showsHint {
+                favoritesHint { favoritesHintDismissed = favoritesHintDismissed.isEmpty ? profile : favoritesHintDismissed + "," + profile }
+            } else {
+                favoritesGrid(tabs)
+            }
+        }
+        .padding(.top, tabs.isEmpty && !showsHint ? 0 : 6)
+        .contentShape(Rectangle())
+        .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: tabs.map(\.id))
+        .dropDestination(for: String.self) { values, _ in
+            draggedTab(values).map { model.place($0, kind: .favorite) } ?? false
+        } isTargeted: { targeting("favorites")($0) }
+    }
+
+    private func favoritesHint(dismiss: @escaping () -> Void) -> some View {
+        let targeted = dropTarget == "favorites"
+        return VStack(spacing: 3) {
+            Image(systemName: "star.circle.fill").font(.system(size: 17)).padding(.bottom, 3)
+            Text("Drag to add Favorites").font(.system(size: 12, weight: .semibold))
+            Text("Favorites keep your most used sites and apps close")
+                .font(.system(size: 11)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 24).padding(.vertical, 12).frame(maxWidth: .infinity)
+        .background(Color.accentColor.opacity(targeted ? 0.15 : 0), in: RoundedRectangle(cornerRadius: 11))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                .foregroundStyle(targeted ? Color.accentColor : Color.primary.opacity(0.25))
+        }
+        .overlay(alignment: .topTrailing) {
+            Button(action: dismiss) { Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).padding(8) }
+                .buttonStyle(.plain).foregroundStyle(.secondary).help("Dismiss").accessibilityLabel("Dismiss Favorites tip")
+        }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.15), value: targeted)
+    }
+
+    private func favoritesGrid(_ tabs: [BrowserTab]) -> some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 3), spacing: 7) {
             ForEach(tabs) { tab in
                 SiteIcon(controller: model.favicons, url: tab.url, saved: model.state.savedFaviconPNG(forTab: tab.id),
                          profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 24)
@@ -293,12 +334,6 @@ struct BrowserSidebar: View {
                     .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 9))
             }
         }
-        .padding(.top, tabs.isEmpty ? 0 : 6)
-        .contentShape(Rectangle())
-        .animation(reduceMotion ? nil : .snappy(duration: 0.22), value: tabs.map(\.id))
-        .dropDestination(for: String.self) { values, _ in
-            draggedTab(values).map { model.place($0, kind: .favorite) } ?? false
-        } isTargeted: { targeting("favorites")($0) }
     }
 
     private func folderContents(parent: UUID?) -> AnyView {
