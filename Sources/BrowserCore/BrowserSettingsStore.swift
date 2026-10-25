@@ -83,6 +83,11 @@ public struct BrowserSettings: Codable, Equatable, Sendable {
     // Arc stores `enabledHosts` and `disabledDefaultHosts` for Developer Mode; same shape here.
     private var developerHosts: Set<String>?
     private var developerDefaultsOff: Set<String>?
+    // The first-launch welcome.
+    private var onboardingDone: Bool?
+    private var onboardingResume: OnboardingStep?
+    private var premiereMute: Bool?
+    private var archiveToastShown: Bool?
 
     public init() {}
 
@@ -152,6 +157,12 @@ public struct BrowserSettings: Codable, Equatable, Sendable {
     public var warnBeforeQuitting: Bool { get { warnBeforeQuit ?? true } set { warnBeforeQuit = newValue } }
     /// The sidebar's address field shows the whole URL rather than the site name.
     public var showFullURL: Bool { get { fullURL ?? false } set { fullURL = newValue } }
+    public var onboardingCompleted: Bool { get { onboardingDone ?? false } set { onboardingDone = newValue ? true : nil } }
+    /// Where to pick the welcome up again after a quit partway through; nil once it's done.
+    public var onboardingStep: OnboardingStep? { get { onboardingResume } set { onboardingResume = newValue } }
+    public var premiereMuted: Bool { get { premiereMute ?? false } set { premiereMute = newValue ? true : nil } }
+    /// The "We tidied up" note has been shown once.
+    public var archiveExplained: Bool { get { archiveToastShown ?? false } set { archiveToastShown = newValue ? true : nil } }
 
     public func autoArchiveAge(forProfile id: UUID) -> AutoArchiveAge {
         autoArchiveAgeByProfile?[id] ?? autoArchiveAge
