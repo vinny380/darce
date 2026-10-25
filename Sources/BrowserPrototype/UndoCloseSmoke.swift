@@ -133,3 +133,19 @@ func runUserAgentSmoke() async -> [String: Bool] {
     }
     return ["user_agent_says_safari": agent.contains(" Version/") && agent.hasSuffix(" Safari/605.1.15")]
 }
+
+/// YouTube's full-screen button needs the Fullscreen API ("Your browser doesn't support full screen" otherwise).
+@MainActor
+func runFullscreenAPISmoke() async -> [String: Bool] {
+    let page = BrowserPage(url: URL(string: "about:blank")!, dataStore: .nonPersistent())
+    page.webView.loadHTMLString("<title>FS</title>", baseURL: URL(string: "https://fullscreen.invalid/"))
+    var enabled = false
+    for _ in 0..<100 {
+        if !page.webView.isLoading, let value = try? await page.webView.evaluateJavaScript("document.fullscreenEnabled === true") as? Bool {
+            enabled = value
+            break
+        }
+        try? await Task.sleep(for: .milliseconds(50))
+    }
+    return ["pages_can_go_full_screen": enabled]
+}

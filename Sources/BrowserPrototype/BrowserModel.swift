@@ -591,6 +591,8 @@ final class BrowserPage: NSObject, ObservableObject, WKNavigationDelegate, WKUID
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = dataStore
         configuration.applicationNameForUserAgent = Self.safariUserAgent
+        // Off by default for WebKit apps; without it video players say the browser "doesn't support full screen".
+        configuration.preferences.isElementFullscreenEnabled = true
         joinsExtensions = extensions
         if extensions { Extensions.attach(configuration) }
         WebInspector.enableDeveloperExtras(configuration)
