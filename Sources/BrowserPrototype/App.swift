@@ -345,51 +345,53 @@ struct BrowserWindow: View {
         }
     }
 
-    /// Like Arc: with the sidebar hidden, pushing the pointer to the left edge slides it out over the page;
-    /// moving away tucks it back after a moment (so a brief overshoot doesn't snap it shut).
+    /// Like Arc: with the sidebar hidden, pushing the pointer to the left edge slides it out over the page,
+    /// and leaving it tucks it straight back. It stays built and slides on a transform, so both ways are smooth.
     @ViewBuilder private var edgeSidebar: some View {
-        Group {
-            if edgeRevealed {
-                BrowserSidebar(model: model, appearance: appearance, showArchive: $showArchive, showNewSpace: $showNewSpace, showNewFolder: $showNewFolder,
-                               spaceSlide: spaceSlide, spaceSlideProgress: slideProgress, floating: true)
-                    .frame(width: sidebarWidth)
-                    // The Space color is translucent; an opaque base keeps the page and header from showing through.
-                    .background {
-                        ZStack {
-                            Color(nsColor: .windowBackgroundColor)
-                            appearance.background(forSpace: model.state.selectedSpaceID, scheme: scheme)
+        ZStack(alignment: .topLeading) {
+            Color.clear.frame(width: 6).frame(maxHeight: .infinity).contentShape(Rectangle())
+                .onHover { inside in
+                    guard inside else { return }
+                    edgeHide?.cancel()
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.24)) { edgeRevealed = true }
+                }
+                .accessibilityHidden(true)
+            BrowserSidebar(model: model, appearance: appearance, showArchive: $showArchive, showNewSpace: $showNewSpace, showNewFolder: $showNewFolder,
+                           spaceSlide: spaceSlide, spaceSlideProgress: slideProgress, floating: true)
+                .frame(width: sidebarWidth)
+                // The Space color is translucent; an opaque base keeps the page and header from showing through.
+                .background {
+                    ZStack {
+                        Color(nsColor: .windowBackgroundColor)
+                        appearance.background(forSpace: model.state.selectedSpaceID, scheme: scheme)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.18)))
+                .compositingGroup()
+                .shadow(color: .black.opacity(edgeRevealed ? 0.3 : 0), radius: 24, x: 6)
+                // Swipes are read wherever the monitor's view sits, so it only exists while the sidebar is out.
+                .background { if edgeRevealed { SpaceSwipeMonitor(onUpdate: handleSpaceSwipe) } }
+                // Flush with the window's top so its first row lines up with the window buttons, as when docked.
+                .padding([.leading, .bottom], 6)
+                .contentShape(Rectangle())
+                .onHover { inside in
+                    edgeHide?.cancel()
+                    guard !inside, edgeRevealed else { return }
+                    let width = sidebarWidth + 6
+                    edgeHide = Task { @MainActor in
+                        // A right-click menu over the sidebar also reads as leaving; wait for it to close, then
+                        // stay out only if the pointer came back over the sidebar.
+                        while MenuTracking.isOpen || Self.pointerInLeadingStrip(width: width) {
+                            try? await Task.sleep(for: .milliseconds(80))
+                            guard !Task.isCancelled else { return }
                         }
+                        withAnimation(reduceMotion ? nil : .smooth(duration: 0.2)) { edgeRevealed = false }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.18)))
-                    .shadow(color: .black.opacity(0.3), radius: 24, x: 6)
-                    .background(SpaceSwipeMonitor(onUpdate: handleSpaceSwipe))
-                    // Flush with the window's top so its first row lines up with the window buttons, as when docked.
-                    .padding([.leading, .bottom], 6)
-                    .onHover { inside in
-                        edgeHide?.cancel()
-                        guard !inside else { return }
-                        let width = sidebarWidth
-                        edgeHide = Task { @MainActor in
-                            // Hover also "leaves" when a right-click menu opens over the sidebar; wait until the
-                            // menu is gone and the pointer has really left the sidebar's strip.
-                            repeat {
-                                try? await Task.sleep(for: .milliseconds(350))
-                                guard !Task.isCancelled else { return }
-                            } while MenuTracking.isOpen || Self.pointerInLeadingStrip(width: width + 12)
-                            withAnimation(reduceMotion ? nil : .smooth(duration: 0.22)) { edgeRevealed = false }
-                        }
-                    }
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-            } else {
-                Color.clear.frame(width: 6).contentShape(Rectangle())
-                    .onHover { inside in
-                        guard inside else { return }
-                        edgeHide?.cancel()
-                        withAnimation(reduceMotion ? nil : .spring(duration: 0.3, bounce: 0.12)) { edgeRevealed = true }
-                    }
-                    .accessibilityHidden(true)
-            }
+                }
+                .offset(x: edgeRevealed ? 0 : -(sidebarWidth + 40))
+                .allowsHitTesting(edgeRevealed)
+                .accessibilityHidden(!edgeRevealed)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .onChange(of: model.sidebarVisible) { _, _ in edgeRevealed = false }
