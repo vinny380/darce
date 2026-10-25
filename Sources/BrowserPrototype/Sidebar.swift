@@ -15,7 +15,7 @@ struct BrowserSidebar: View {
     var floating = false
     @Environment(\.colorScheme) private var scheme
     private enum RenameTarget { case folder(UUID), tab(UUID), space(UUID) }
-    private enum RemovalTarget { case folder(UUID), space(UUID, destination: UUID) }
+    private enum RemovalTarget { case folder(UUID), space(UUID) }
     @State private var renameTarget: RenameTarget?
     @State private var renameText = ""
     @State private var removalTarget: RemovalTarget?
@@ -185,7 +185,7 @@ struct BrowserSidebar: View {
             let symbol = if case .folder = removalTarget { "folder" } else { "rectangle.stack" }
             DialogCenter.shared.present(DialogRequest(title: removalTitle, message: removalMessage, symbol: symbol, actions: [
                 .init(title: "Cancel", role: .cancel) { removalTarget = nil },
-                .init(title: "Remove", role: .destructive) { submitRemoval() },
+                .init(title: removalTarget.map { if case .space = $0 { "Delete" } else { "Remove" } } ?? "Remove", role: .destructive) { submitRemoval() },
             ]), in: model)
         }
     }
@@ -222,7 +222,7 @@ struct BrowserSidebar: View {
     private var removalTitle: String {
         switch removalTarget {
         case .folder(let id): "Remove “\(model.state.folders.first { $0.id == id }?.name ?? "Folder")”?"
-        case .space(let id, _): "Remove “\(model.state.spaces.first { $0.id == id }?.name ?? "Space")”?"
+        case .space(let id): "Delete “\(model.state.spaces.first { $0.id == id }?.name ?? "Space")”?"
         case nil: "Remove Container?"
         }
     }
@@ -233,9 +233,12 @@ struct BrowserSidebar: View {
             let parent = model.state.folders.first { $0.id == id }?.parentID
             let location = model.state.folders.first { $0.id == parent }?.name ?? "the top level of this Space"
             return "Its tabs and child folders will move to \(location). No tabs will be deleted."
-        case .space(_, let destination):
-            let name = model.state.spaces.first { $0.id == destination }?.name ?? "the selected Space"
-            return "All tabs, Favorites, archived tabs, and folders will move to \(name), keeping the same profile. No tabs will be deleted."
+        case .space(let id):
+            let profile = model.state.spaces.first { $0.id == id }?.profileID
+            if model.state.spaces.contains(where: { $0.id != id && $0.profileID == profile }) {
+                return "Its pinned and open tabs move to the Archive, where ⇧⌘T can bring them back. Its folders are removed."
+            }
+            return "This is the last Space in its profile, so its tabs, Favorites, and folders will be deleted."
         case nil: return ""
         }
     }
@@ -246,22 +249,44 @@ struct BrowserSidebar: View {
         model.stateUpdate { state in
             switch target {
             case .folder(let id): removed = state.deleteFolder(id)
-            case .space(let id, let destination): removed = state.removeSpace(id, movingContentsTo: destination)
+            case .space(let id): removed = state.deleteSpace(id)
             }
         }
-        if !removed { model.errorMessage = "This container could not be removed. Choose an existing destination in the same profile." }
+        if !removed { model.errorMessage = "This could not be removed. It may have moved, or it's the only Space." }
         removalTarget = nil
     }
 
     @ViewBuilder private func spaceActions(_ space: BrowserSpace) -> some View {
+        // Arc's Space menu, minus Live Folders and Share Space, which D'arce doesn't have.
+        Button("Change Space Icon…") { model.selectSpace(space.id); model.panel = .appearance }
         Button("Rename Space…") { renameText = space.name; renameTarget = .space(space.id) }
-        Button("Customize Space…") { model.selectSpace(space.id); model.panel = .appearance }
+        Button("Edit Theme Color…") { model.selectSpace(space.id); model.panel = .appearance }
+        Menu("Set Profile") {
+            ForEach(model.state.profiles) { profile in
+                Toggle(profile.name, isOn: Binding(get: { profile.id == space.profileID },
+                                                   set: { if $0 { model.assignProfile(profile.id, to: space.id) } }))
+            }
+            Divider()
+            Button("New Profile…") { model.panel = .profiles }
+        }
+        Divider()
+        Button("New Folder") { model.selectSpace(space.id); showNewFolder = true }
+        Divider()
         let destinations = model.state.spaces.filter { $0.id != space.id && $0.profileID == space.profileID }
-        Menu("Remove Space and Move Contents to") {
+        Menu("Export “\(space.name)” into Folder") {
             ForEach(destinations) { destination in
-                Button(destination.name) { removalTarget = .space(space.id, destination: destination.id) }
+                Button(destination.name) {
+                    var moved = false
+                    model.stateUpdate { moved = $0.exportSpaceIntoFolder(space.id, to: destination.id) }
+                    if moved { model.selectSpace(destination.id) }
+                }
             }
         }.disabled(destinations.isEmpty)
+        Divider()
+        Button("Manage Spaces…") { model.panel = .spaces }
+        Divider()
+        Button("Delete Space", role: .destructive) { removalTarget = .space(space.id) }
+            .disabled(model.state.spaces.count < 2)
     }
 
     private var favorites: some View {
