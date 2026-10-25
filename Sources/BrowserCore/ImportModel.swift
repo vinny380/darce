@@ -1,0 +1,59 @@
+import Foundation
+
+/// What a browser import found, independent of the browser it came from. Every item carries a key
+/// unique to its source (e.g. "arc:<itemID>") so importing again never duplicates it.
+public indirect enum ImportedItem: Equatable, Sendable {
+    case tab(key: String, title: String, url: URL)
+    case folder(key: String, title: String, children: [ImportedItem])
+    /// Panes are `.tab`s shown side by side.
+    case split(key: String, panes: [ImportedItem], vertical: Bool)
+}
+
+public struct ImportedSpace: Equatable, Sendable {
+    public var key: String
+    public var name: String
+    public var emoji: String?
+    public var tint: AppearanceColor?
+    public var pinned: [ImportedItem]
+    public var today: [ImportedItem]
+
+    public init(key: String, name: String, emoji: String? = nil, tint: AppearanceColor? = nil,
+                pinned: [ImportedItem] = [], today: [ImportedItem] = []) {
+        self.key = key; self.name = name; self.emoji = emoji; self.tint = tint; self.pinned = pinned; self.today = today
+    }
+}
+
+public struct ImportedVisit: Equatable, Sendable {
+    public var url: URL
+    public var title: String
+    public var visitedAt: Date
+
+    public init(url: URL, title: String, visitedAt: Date) { self.url = url; self.title = title; self.visitedAt = visitedAt }
+}
+
+public struct ImportedProfile: Equatable, Sendable {
+    /// e.g. "arc:Default", "chrome:Profile 1".
+    public var key: String
+    public var name: String
+    /// The browser's own profile folder, or nil when it isn't on this Mac.
+    public var directory: URL?
+    /// Arc only.
+    public var spaces: [ImportedSpace] = []
+    public var favorites: [ImportedItem] = []
+    /// Already rooted: bookmark bar items, then "Other Bookmarks" / "Mobile Bookmarks" folders.
+    public var bookmarks: [ImportedItem] = []
+    public var history: [ImportedVisit] = []
+    /// Human-readable lines for "Didn't come over".
+    public var skipped: [String] = []
+
+    public init(key: String, name: String, directory: URL?) { self.key = key; self.name = name; self.directory = directory }
+}
+
+enum ImportURL {
+    /// Only addresses a D'arce tab can open.
+    static func supported(_ string: String) -> URL? {
+        guard let url = URL(string: string), let scheme = url.scheme?.lowercased() else { return nil }
+        if scheme == "http" || scheme == "https" { return url.host?.isEmpty == false ? url : nil }
+        return scheme == "file" || string == "about:blank" ? url : nil
+    }
+}
