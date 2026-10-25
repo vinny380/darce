@@ -266,7 +266,7 @@ struct BrowserSidebar: View {
         let tabs = model.state.visibleTabs.filter { $0.kind == .favorite }
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 3), spacing: 7) {
             ForEach(tabs) { tab in
-                SiteIcon(controller: model.favicons, url: tab.url,
+                SiteIcon(controller: model.favicons, url: tab.url, saved: model.state.savedFaviconPNG(forTab: tab.id),
                          profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 24)
                     .foregroundStyle(.primary.opacity(0.75)).frame(maxWidth: .infinity).frame(height: 50)
                     .background(Palette.color(model.state.selectedTabID == tab.id ? "SidebarItemHovered" : "SidebarItemBackground", scheme: scheme), in: RoundedRectangle(cornerRadius: 11))
@@ -380,7 +380,7 @@ struct BrowserSidebar: View {
                               canReset: model.canResetSidebarTab(tab.id, isEditing: isRenamingTab(tab.id)),
                               contentVisible: model.state.displayedTabIDs.contains(tab.id),
                               semanticPalette: appearance.semanticPalette(forSpace: model.state.selectedSpaceID),
-                              icon: SiteIcon(controller: model.favicons, url: tab.url,
+                              icon: SiteIcon(controller: model.favicons, url: tab.url, saved: model.state.savedFaviconPNG(forTab: tab.id),
                                              profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 16,
                                              usesInheritedForeground: true),
                               select: { model.select(tab.id) }, reset: {
@@ -463,7 +463,7 @@ struct BrowserSidebar: View {
     private var placeholderChip: some View {
         HStack(spacing: 7) {
             if let id = draggingTab, let tab = model.state.tabs.first(where: { $0.id == id }) {
-                SiteIcon(controller: model.favicons, url: tab.url,
+                SiteIcon(controller: model.favicons, url: tab.url, saved: model.state.savedFaviconPNG(forTab: tab.id),
                          profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 14)
                 Text(tab.title).font(.system(size: 13)).lineLimit(1)
             }
@@ -479,7 +479,7 @@ struct BrowserSidebar: View {
     private func splitChip(_ tab: BrowserTab) -> some View {
         let focused = model.state.selectedTabID == tab.id
         return HStack(spacing: 7) {
-                SiteIcon(controller: model.favicons, url: tab.url,
+                SiteIcon(controller: model.favicons, url: tab.url, saved: model.state.savedFaviconPNG(forTab: tab.id),
                          profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 14)
                 Text(tab.title).font(.system(size: 13)).lineLimit(1).truncationMode(.tail)
             }
@@ -500,7 +500,7 @@ struct BrowserSidebar: View {
     /// What follows the pointer: the tab as a lifted sidebar row, like Arc.
     private func dragPreview(_ tab: BrowserTab) -> some View {
         HStack(spacing: 10) {
-            SiteIcon(controller: model.favicons, url: tab.url,
+            SiteIcon(controller: model.favicons, url: tab.url, saved: model.state.savedFaviconPNG(forTab: tab.id),
                      profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 16)
             Text(tab.title).font(.system(size: 14)).lineLimit(1)
             Spacer(minLength: 8)

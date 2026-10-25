@@ -197,6 +197,15 @@ final class BrowserModel: ObservableObject {
 
     func dataStore(for profileID: UUID) -> WKWebsiteDataStore { workspace.dataStore(for: profileID) }
 
+    /// Keeps the page's icon with its tab (the rules for which icon a tab keeps live in BrowserState).
+    private func saveIcon(_ png: Data?, tab id: UUID, page: BrowserPage, profileID: UUID) {
+        var probe = state  // only write the session when the saved icon would really change
+        guard probe.updateSavedFavicon(id, profileID: profileID, png: png, liveURL: page.webView.url,
+                                       canGoBack: page.webView.canGoBack, hasLoaded: true) else { return }
+        stateUpdate { _ = $0.updateSavedFavicon(id, profileID: profileID, png: png, liveURL: page.webView.url,
+                                                canGoBack: page.webView.canGoBack, hasLoaded: true) }
+    }
+
     /// Pages already created, in sidebar order; extensions see only these (never forcing every tab to load).
     var loadedPagesInOrder: [BrowserPage] { state.visibleTabs.compactMap { pages[$0.id] } }
     func loadedPage(_ id: UUID) -> BrowserPage? { pages[id] }
@@ -266,7 +275,10 @@ final class BrowserModel: ObservableObject {
         }
         page.onFinish = { [weak self, weak page] in
             guard let self, let page else { return }
-            self.favicons.refresh(from: page, profileID: profileID)
+            self.favicons.refresh(from: page, profileID: profileID) { [weak self, weak page] found in
+                guard let self, let page, let url = page.webView.url else { return }
+                self.saveIcon(found ? self.favicons.png(for: url, profileID: profileID) : nil, tab: id, page: page, profileID: profileID)
+            }
         }
         page.applyBoosts(controller: boosts, profileID: profileID)
         pages[id] = page

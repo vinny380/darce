@@ -84,3 +84,23 @@ func runEaselSmoke(model: BrowserModel) -> [String: Bool] {
     checks["easel_reopens_from_library"] = model.state.selectedTab?.url.easelID == easel
     return checks
 }
+
+/// Saved tab icons: once a pinned tab's page shows its icon, the tab keeps it (so Favorites and pins show it before
+/// their pages load), and the sidebar icon falls back to it.
+@MainActor
+func runSavedIconSmoke(model: BrowserModel) async -> [String: Bool] {
+    let red = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=="
+    model.open(URL(string: "https://saved-icon-fixture.invalid/")!)
+    guard let id = model.state.selectedTabID, let page = model.page(for: id) else { return ["saved_icon_has_page": false] }
+    model.pin(id, kind: .pinned)
+    page.webView.loadSimulatedRequest(URLRequest(url: URL(string: "https://saved-icon-fixture.invalid/")!),
+                                      responseHTML: "<title>Icon</title><link rel='icon' href='data:image/png;base64,\(red)'>")
+    var saved: Data?
+    for _ in 0..<100 {
+        saved = model.state.savedFaviconPNG(forTab: id)
+        if saved != nil { break }
+        try? await Task.sleep(for: .milliseconds(50))
+    }
+    return ["saved_icon_kept_on_tab": saved != nil,
+            "saved_icon_is_a_png": saved?.starts(with: [137, 80, 78, 71]) == true]
+}
