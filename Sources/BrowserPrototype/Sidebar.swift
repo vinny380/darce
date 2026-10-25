@@ -66,7 +66,7 @@ struct BrowserSidebar: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 7) {
-                        Image(systemName: appearance.state.space(model.state.selectedSpaceID).icon)
+                        SpaceIcon(icon: appearance.state.space(model.state.selectedSpaceID).icon)
                             .font(.system(size: 11))
                         Text(model.state.spaces.first { $0.id == model.state.selectedSpaceID }?.name ?? "Space")
                             .font(.system(size: 12, weight: .semibold))
@@ -146,7 +146,7 @@ struct BrowserSidebar: View {
                 Spacer(minLength: 4)
                 ForEach(model.state.spaces) { space in
                     Button { model.selectSpace(space.id) } label: {
-                        Image(systemName: appearance.state.space(space.id).icon)
+                        SpaceIcon(icon: appearance.state.space(space.id).icon)
                             .font(.system(size: 11)).frame(width: 29, height: 29)
                             .background(model.state.selectedSpaceID == space.id ? Color.primary.opacity(0.10) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
                             .opacity(model.state.selectedSpaceID == space.id ? 0.9 : 0.4)

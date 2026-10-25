@@ -130,7 +130,7 @@ struct AppearanceView: View {
             }
             if let error = controller.errorMessage { Text(error).foregroundStyle(.red).textSelection(.enabled) }
             HStack(spacing: 10) {
-                Image(systemName: controller.state.space(spaceID).icon).font(.title2)
+                SpaceIcon(icon: controller.state.space(spaceID).icon).font(.title2)
                 Text(spaceName).font(.title3.weight(.semibold))
                 Spacer()
             }

@@ -221,12 +221,12 @@ struct MiniBrowserView: View {
                 Section("Open in") {
                     ForEach(model.state.spaces) { space in
                         Button { mini.openInMain(space: space.id) } label: {
-                            Label(space.name, systemImage: model.appearance.state.space(space.id).icon)
+                            spaceLabel(space.name, icon: model.appearance.state.space(space.id).icon)
                         }
                     }
                 }
             } label: {
-                Label("Open in \(spaceName)", systemImage: model.appearance.state.space(mini.spaceID).icon)
+                spaceLabel("Open in \(spaceName)", icon: model.appearance.state.space(mini.spaceID).icon)
             } primaryAction: { mini.openInMain() }
             .menuStyle(.button).buttonStyle(.plain).menuIndicator(.visible).fixedSize()
             .font(.system(size: 12, weight: .semibold)).foregroundStyle(.primary)

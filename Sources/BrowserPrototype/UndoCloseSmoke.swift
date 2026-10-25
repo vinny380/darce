@@ -1,3 +1,4 @@
+import BrowserCore
 import AppKit
 import Foundation
 
@@ -103,4 +104,16 @@ func runSavedIconSmoke(model: BrowserModel) async -> [String: Bool] {
     }
     return ["saved_icon_kept_on_tab": saved != nil,
             "saved_icon_is_a_png": saved?.starts(with: [137, 80, 78, 71]) == true]
+}
+
+/// Imported Arc Spaces bring emoji icons; they must be accepted and saved like symbol names.
+@MainActor
+func runEmojiSpaceIconSmoke(model: BrowserModel) -> [String: Bool] {
+    let space = model.state.selectedSpaceID
+    let original = model.appearance.state.space(space).icon
+    let saved = model.appearance.update { $0.spaces[space, default: SpaceAppearance()].icon = "🚀" }
+    let kept = model.appearance.state.space(space).icon == "🚀"
+    let junk = model.appearance.update { $0.spaces[space, default: SpaceAppearance()].icon = "<b>" }
+    _ = model.appearance.update { $0.spaces[space, default: SpaceAppearance()].icon = original }
+    return ["emoji_space_icon_saves": saved && kept, "junk_space_icon_rejected": !junk]
 }

@@ -27,7 +27,7 @@ struct SpacesMenu: Commands {
                 Divider()
                 ForEach(Array(model.state.spaces.enumerated()), id: \.element.id) { index, space in
                     Toggle(isOn: Binding(get: { space.id == model.state.selectedSpaceID }, set: { _ in model.selectSpace(space.id) })) {
-                        Label(space.name, systemImage: model.appearance.state.space(space.id).icon)
+                        spaceLabel(space.name, icon: model.appearance.state.space(space.id).icon)
                     }
                     .modifier(SpaceNumberKey(index: index))
                 }
@@ -76,7 +76,7 @@ struct ManageSpacesView: View {
 
     private func row(_ space: BrowserSpace) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: model.appearance.state.space(space.id).icon).frame(width: 20)
+            SpaceIcon(icon: model.appearance.state.space(space.id).icon).frame(width: 20)
             TextField("Name", text: Binding(get: { space.name }, set: { name in
                 let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty { model.stateUpdate { $0.renameSpace(space.id, name: trimmed) } }

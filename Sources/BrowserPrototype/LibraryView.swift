@@ -207,7 +207,7 @@ struct LibraryView: View {
                 let tabs = model.state.tabs.filter { $0.spaceID == space.id && $0.kind != .archived }.count
                 LibraryRow(title: space.name, subtitle: tabs == 1 ? "1 tab" : "\(tabs) tabs",
                            selected: space.id == model.state.selectedSpaceID) {
-                    Image(systemName: model.appearance.state.space(space.id).icon).font(.system(size: 17)).frame(width: 34, height: 34)
+                    SpaceIcon(icon: model.appearance.state.space(space.id).icon).font(.system(size: 17)).frame(width: 34, height: 34)
                 }
                 .onTapGesture { model.selectSpace(space.id); model.libraryOpen = false }
                 .contextMenu { Button("Rename…") { model.spacePrompt = .rename(space.id) } }
