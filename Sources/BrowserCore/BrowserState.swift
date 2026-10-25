@@ -222,6 +222,51 @@ public struct BrowserState: Codable, Equatable, Sendable {
         return true
     }
 
+    /// Arc's "Export into Folder": the Space becomes a folder of the same name in another Space of its profile.
+    /// Its pins and folders keep their nesting under that folder; Today tabs join the destination's Today.
+    @discardableResult
+    public mutating func exportSpaceIntoFolder(_ id: UUID, to destinationID: UUID) -> Bool {
+        guard spaces.count > 1, id != destinationID,
+              let source = spaces.first(where: { $0.id == id }),
+              spaces.contains(where: { $0.id == destinationID && $0.profileID == source.profileID }),
+              let folder = createFolder(name: source.name, spaceID: id) else { return false }
+        for index in folders.indices where folders[index].spaceID == id && folders[index].parentID == nil && folders[index].id != folder {
+            folders[index].parentID = folder
+        }
+        for index in tabs.indices where tabs[index].spaceID == id && tabs[index].kind == .pinned && tabs[index].folderID == nil {
+            tabs[index].folderID = folder
+        }
+        return removeSpace(id, movingContentsTo: destinationID)
+    }
+
+    /// Arc's "Delete Space": its folders go, and its pinned and Today tabs go to the Archive (so ⇧⌘T can bring
+    /// them back) in another Space of the same profile, where its Favorites also stay. If it was the profile's
+    /// last Space, everything it held goes with it.
+    @discardableResult
+    public mutating func deleteSpace(_ id: UUID, now: Date = Date()) -> Bool {
+        guard spaces.count > 1, let source = spaces.first(where: { $0.id == id }) else { return false }
+        let heir = spaces.first { $0.id != id && $0.profileID == source.profileID }?.id
+        splitGroups.removeAll { $0.spaceID == id }
+        folders.removeAll { $0.spaceID == id }
+        if let heir {
+            for index in tabs.indices where tabs[index].spaceID == id {
+                if tabs[index].kind == .pinned || tabs[index].kind == .today {
+                    tabs[index].kind = .archived
+                    tabs[index].archivedAt = now
+                }
+                tabs[index].folderID = nil
+                tabs[index].spaceID = heir
+            }
+        } else {
+            tabs.removeAll { $0.spaceID == id }
+        }
+        spaces.removeAll { $0.id == id }
+        selectedTabBySpace.removeValue(forKey: id)
+        if selectedSpaceID == id { selectedSpaceID = heir ?? spaces[0].id }
+        repairSelection()
+        return true
+    }
+
     @discardableResult
     public mutating func createFolder(name: String, spaceID: UUID, parentID: UUID? = nil) -> UUID? {
         guard spaces.contains(where: { $0.id == spaceID }),
