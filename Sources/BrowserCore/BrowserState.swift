@@ -36,6 +36,8 @@ public struct BrowserTab: Identifiable, Codable, Equatable, Sendable {
     public internal(set) var homeURL: URL?
     public internal(set) var lastActiveAt: Date
     public internal(set) var archivedAt: Date?
+    /// The tab's icon, kept with the tab so Favorites and pins show it before their page loads.
+    var savedFavicon: SavedFavicon?
 
     init(id: UUID, spaceID: UUID, url: URL, title: String, kind: TabKind, now: Date) {
         self.id = id
@@ -47,7 +49,7 @@ public struct BrowserTab: Identifiable, Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, spaceID, url, title, customTitle, kind, folderID, homeURL, lastActiveAt, archivedAt
+        case id, spaceID, url, title, customTitle, kind, folderID, homeURL, lastActiveAt, archivedAt, savedFavicon
     }
 
     public init(from decoder: any Decoder) throws {
@@ -64,6 +66,9 @@ public struct BrowserTab: Identifiable, Codable, Equatable, Sendable {
         // Old sessions have no activity clock; give them a full grace period on migration.
         lastActiveAt = try values.decodeIfPresent(Date.self, forKey: .lastActiveAt) ?? Date()
         archivedAt = try values.decodeIfPresent(Date.self, forKey: .archivedAt)
+        // A derived cache: anything malformed is dropped rather than failing the tab.
+        savedFavicon = (try? values.decodeIfPresent(SavedFavicon.self, forKey: .savedFavicon)).flatMap { $0 }
+            .flatMap { SavedFavicon.isAcceptablePNG($0.png) ? $0 : nil }
     }
 }
 
@@ -172,6 +177,10 @@ public struct BrowserState: Codable, Equatable, Sendable {
     public mutating func assignSpaceProfile(_ id: UUID, profileID: UUID) -> Bool {
         guard profiles.contains(where: { $0.id == profileID }),
               let index = spaces.firstIndex(where: { $0.id == id }) else { return false }
+        if spaces[index].profileID != profileID {
+            // Icons belong to the profile that loaded them; never carry one into another profile.
+            for tab in tabs.indices where tabs[tab].spaceID == id { tabs[tab].savedFavicon = nil }
+        }
         spaces[index].profileID = profileID
         repairSelection()
         return true
@@ -364,6 +373,7 @@ public struct BrowserState: Codable, Equatable, Sendable {
     public mutating func moveTab(_ id: UUID, to spaceID: UUID) {
         guard spaces.contains(where: { $0.id == spaceID }),
               let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+        dropFaviconIfProfileChanges(index, to: spaceID)
         if tabs[index].spaceID != spaceID { tabs[index].folderID = nil }
         tabs[index].spaceID = spaceID
         repairSelection()
@@ -374,6 +384,7 @@ public struct BrowserState: Codable, Equatable, Sendable {
         guard let index = tabs.firstIndex(where: { $0.id == id }), tabs[index].kind != .archived else { return false }
         if let folderID {
             guard let folder = folders.first(where: { $0.id == folderID }) else { return false }
+            dropFaviconIfProfileChanges(index, to: folder.spaceID)
             tabs[index].spaceID = folder.spaceID
             setKind(id, kind: .pinned)
         }
@@ -418,7 +429,10 @@ public struct BrowserState: Codable, Equatable, Sendable {
         _ = removeFromSplit(id)  // dragging a pane somewhere else takes it out of its split
         if tabs[index].kind != kind { setKind(id, kind: kind) }
         // Favorites are shared across a profile's Spaces; everything else belongs to the Space it was dropped in.
-        if kind != .favorite || !isVisible(tabs[index], in: selectedSpaceID) { tabs[index].spaceID = selectedSpaceID }
+        if kind != .favorite || !isVisible(tabs[index], in: selectedSpaceID) {
+            dropFaviconIfProfileChanges(index, to: selectedSpaceID)
+            tabs[index].spaceID = selectedSpaceID
+        }
         tabs[index].folderID = folderID
         return reorderTab(id, before: targetID)
     }
@@ -654,5 +668,53 @@ extension BrowserState {
                 guard members.insert(id).inserted, tabs.contains(where: { $0.id == id && isVisible($0, in: group.spaceID) }) else { throw BrowserStateFileError.invalidReferences }
             }
         }
+    }
+}
+
+// MARK: Saved tab icons (rules in SavedFaviconTests)
+
+extension BrowserState {
+    /// The tab's saved icon, if it belongs to the tab's current profile. Archived tabs keep theirs for restoring.
+    public func savedFaviconPNG(forTab id: UUID) -> Data? {
+        guard let tab = tabs.first(where: { $0.id == id }), tab.kind != .archived,
+              let saved = tab.savedFavicon, saved.profileID == profileID(forTab: id) else { return nil }
+        return saved.png
+    }
+
+    /// Offers the icon a live page shows. Returns whether the saved icon actually changed.
+    /// - Today tabs take any icon, and lose it only once their page has loaded without one.
+    /// - Pinned tabs and Favorites keep the icon of their home site: before they have one, or with no back history,
+    ///   any page on the home host counts; after that, only the home page itself (ignoring http/www/trailing
+    ///   slash/tracking parameters). They never drop an icon, and an unknown live URL is trusted.
+    @discardableResult
+    public mutating func updateSavedFavicon(_ id: UUID, profileID: UUID, png: Data?,
+                                            liveURL: URL?, canGoBack: Bool, hasLoaded: Bool) -> Bool {
+        guard let index = tabs.firstIndex(where: { $0.id == id }), tabs[index].kind != .archived,
+              self.profileID(forTab: id) == profileID else { return false }
+        let tab = tabs[index]
+        let saved = tab.kind == .pinned || tab.kind == .favorite
+        guard let png else {
+            guard !saved, hasLoaded, tab.savedFavicon != nil else { return false }
+            tabs[index].savedFavicon = nil
+            return true
+        }
+        guard SavedFavicon.isAcceptablePNG(png) else { return false }
+        if saved, let liveURL {
+            let home = PinnedURLComparison.normalized(tab.homeURL ?? tab.url)
+            let live = PinnedURLComparison.normalized(liveURL)
+            let hostOnly = tab.savedFavicon == nil || !canGoBack
+            guard hostOnly ? live.host == home.host : live == home else { return false }
+        }
+        let value = SavedFavicon(profileID: profileID, png: png)
+        guard tab.savedFavicon != value else { return false }
+        tabs[index].savedFavicon = value
+        return true
+    }
+
+    /// Moving a tab to a Space with another profile drops its icon (it was loaded under the old profile).
+    mutating func dropFaviconIfProfileChanges(_ index: Int, to spaceID: UUID) {
+        let from = spaces.first { $0.id == tabs[index].spaceID }?.profileID
+        let to = spaces.first { $0.id == spaceID }?.profileID
+        if from != to { tabs[index].savedFavicon = nil }
     }
 }
