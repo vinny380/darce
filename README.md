@@ -183,6 +183,10 @@ scripts/                   Build, package and smoke tests
 
 Issues and pull requests are welcome. If Arc did something you can't live without, open an issue and say what it was.
 
+## 🙏 Credits
+
+The welcome's moving background is Paper's [Mesh Gradient](https://shaders.paper.design/mesh-gradient) shader ([paper-design/shaders](https://github.com/paper-design/shaders), Apache-2.0), ported to Metal.
+
 ---
 
 <p align="center">

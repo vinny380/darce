@@ -270,3 +270,15 @@ func runPremiereReviewSmoke() -> [String: Bool] {
         "premiere_nothing_to_import_offers_start_fresh": empty.nothingToImport,
     ]
 }
+
+/// The welcome's moving backdrop: the Space color becomes a four-stop ramp, and the Metal port draws a real gradient.
+@MainActor
+func runPremiereMeshSmoke() -> [String: Bool] {
+    let slate = MeshGradientView.palette(for: AppearanceColor(red: 0.4, green: 0.42, blue: 0.55))
+    let pixels = MeshGradientRenderer.renderOffline(palette: slate, width: 64, height: 40, time: 3)
+    let varied = pixels.map { Set($0).count > 50 } ?? false
+    return [
+        "premiere_mesh_palette_matches_playground": slate.map(\.hex) == ["#161722", "#363a55", "#545a83", "#abaec0"],
+        "premiere_mesh_renders_a_gradient": varied,
+    ]
+}

@@ -131,6 +131,7 @@ struct PremiereBackground: View {
         let rich = { (value: Double) in min(max((gray + (value - gray) * 1.45) * 0.6, 0), 1) }
         return Color(.sRGB, red: rich(tint.red), green: rich(tint.green), blue: rich(tint.blue))
             .animation(.timingCurve(0.23, 1, 0.32, 1, duration: 0.6), value: tint)
+            .overlay(MeshGradientView(tint: tint)) // the flat color stays underneath if Metal is unavailable
             .ignoresSafeArea()
     }
 }
