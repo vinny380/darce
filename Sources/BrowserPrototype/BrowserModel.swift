@@ -14,7 +14,7 @@ extension URL {
         return UUID(uuidString: lastPathComponent)
     }
 }
-enum LibraryPanel: String, Identifiable { case profiles, history, downloads, appearance, boosts, documents, browsingData, spaces; var id: String { rawValue } }
+enum LibraryPanel: String, Identifiable { case profiles, history, downloads, appearance, boosts, documents, browsingData, spaces, importBrowser, welcome; var id: String { rawValue } }
 
 @MainActor
 final class BrowserModel: ObservableObject {
@@ -40,6 +40,8 @@ final class BrowserModel: ObservableObject {
     @Published var boostPanelOpen = false
     @Published var boostPanelZapping = false
     var history: HistoryStore? { workspace.history }
+    /// No session existed when D'arce opened: offer to import from another browser.
+    var isFirstLaunch: Bool { workspace.isFirstLaunch }
     var secondaryTabID: UUID? { state.selectedSplitGroup?.tabIDs.first { $0 != state.selectedTabID } }
     @Published private(set) var peekPage: BrowserPage?
     @Published private(set) var isWindowClosed = false

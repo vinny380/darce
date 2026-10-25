@@ -10,6 +10,8 @@ struct BrowserPrototypeApp: App {
     private let smokeOutput: URL?
     private let fixtureBase: URL?
     private let networkPhase: String
+    private let importFrom: ImportBrowser?
+    private let importResult: URL
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -26,6 +28,8 @@ struct BrowserPrototypeApp: App {
         let isSmoke = verificationDirectory != nil || value("--smoke-output") != nil || value("--window-lifecycle-output") != nil
         fixtureBase = value("--network-smoke").flatMap(URL.init(string:))
         networkPhase = value("--network-phase") ?? "seed"
+        importFrom = value("--import-from").flatMap(ImportBrowser.init(rawValue:))
+        importResult = directory.appendingPathComponent("import-result.json")
         let ephemeral = isSmoke && value("--network-smoke") == nil
         if #available(macOS 15.4, *) { ExtensionManager.shared = ExtensionManager(directory: directory) }
         _model = StateObject(wrappedValue: BrowserModel(directory: directory, ephemeralWebsiteData: ephemeral,
@@ -53,7 +57,16 @@ struct BrowserPrototypeApp: App {
                     } else if let smokeOutput, let fixtureBase {
                         await runNetworkSmoke(model: model, base: fixtureBase, phase: networkPhase, output: smokeOutput)
                     } else if let smokeOutput { await runSmoke(model: model, output: smokeOutput) }
-                    else {
+                    else if let importFrom {
+                        let report = await model.importWithoutAsking(from: importFrom)
+                        let encoder = JSONEncoder()
+                        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                        try? encoder.encode(report).write(to: importResult, options: .atomic)
+                        NSApplication.shared.terminate(nil)
+                    } else {
+                        if model.isFirstLaunch, !ImportSources.installed(home: FileManager.default.homeDirectoryForCurrentUser).isEmpty {
+                            model.panel = .welcome
+                        }
                         while !Task.isCancelled {
                             model.archiveExpired()
                             do { try await Task.sleep(for: .seconds(60)) } catch { break }
@@ -294,6 +307,8 @@ struct BrowserWindow: View {
         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: model.libraryOpen)
         .sheet(item: $model.panel) { panel in
             switch panel {
+            case .importBrowser: ImportSheet(model: model)
+            case .welcome: ImportSheet(model: model, welcome: true)
             case .browsingData:
                 BrowsingDataView(controller: model.browsingData, profileID: model.state.selectedProfileID,
                                  profileName: model.state.profiles.first(where: { $0.id == model.state.selectedProfileID })?.name ?? "Profile")

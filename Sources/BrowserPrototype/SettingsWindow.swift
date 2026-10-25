@@ -146,6 +146,7 @@ private struct ProfileSettings: View {
                 }
             }
             Section("Your Data and Settings") {
+                dataRow("Import from Another Browser", icon: "square.and.arrow.down.fill", color: .blue) { model.panel = .importBrowser }
                 dataRow("Passwords", icon: "key.fill", color: .green) { openPasswords() }
                 dataRow("Clear Browsing Data", icon: "trash.fill", color: .red) { clearingData = true }
             }

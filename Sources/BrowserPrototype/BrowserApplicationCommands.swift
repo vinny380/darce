@@ -50,6 +50,7 @@ struct BrowserApplicationCommands: Commands {
                     else if activeModel.peekPage != nil { activeModel.promotePeek() }
                 }.keyboardShortcut("o")
                 Divider()
+                Button("Import from Another Browser…") { activeModel.panel = .importBrowser }.disabled(privateWindows.isPrivateWindowActive)
                 Button("Import Bookmarks…") { activeModel.importBookmarks() }.disabled(privateWindows.isPrivateWindowActive)
                 Button("Export Bookmarks…") { activeModel.exportBookmarks() }.disabled(privateWindows.isPrivateWindowActive)
                 Divider()

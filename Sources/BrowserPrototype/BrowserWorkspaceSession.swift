@@ -25,6 +25,7 @@ final class BrowserWorkspaceSession: ObservableObject {
     let favicons = FaviconController()
     let loadError: String?
     @Published private(set) var history: HistoryStore?
+    let isFirstLaunch: Bool
     @Published private(set) var clearingProfiles: Set<UUID> = []
     private let ephemeralWebsiteData: Bool
     private var stores: [UUID: WKWebsiteDataStore] = [:]
@@ -34,6 +35,7 @@ final class BrowserWorkspaceSession: ObservableObject {
     private init(directory: URL, ephemeralWebsiteData: Bool = false, downloadsDirectory: URL? = nil) {
         self.ephemeralWebsiteData = ephemeralWebsiteData
         let file = directory.appendingPathComponent("session.json")
+        isFirstLaunch = !FileManager.default.fileExists(atPath: file.path)
         var errors: [String] = []
         do { store = try BrowserWorkspaceStore(fileURL: file) }
         catch {

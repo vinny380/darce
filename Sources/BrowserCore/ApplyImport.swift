@@ -33,6 +33,7 @@ public struct ImportOutcome: Equatable, Sendable {
     public var counts: [String: Int] = ["spaces": 0, "tabs": 0, "folders": 0, "favorites": 0, "bookmarks": 0]
     public var skipped: [String] = []
     public var firstSpaceID: UUID?
+    public init() {}
 }
 
 extension BrowserState {
