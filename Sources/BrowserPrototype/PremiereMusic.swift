@@ -57,14 +57,37 @@ final class PremiereMusic {
         }
     }
 
+    /// Cues from a text file, one per line: `<seconds> bloom|bass|tick <n>|warmth <0…1>|shuffle|resolve|fade`.
+    static func parseCues(_ text: String) -> (cues: [(Double, Cue)], fadeOutAt: Double?) {
+        var cues: [(Double, Cue)] = [], fade: Double?
+        for line in text.split(separator: "\n") {
+            let parts = line.split(separator: " ")
+            guard parts.count >= 2, let t = Double(parts[0]) else { continue }
+            let value = parts.count > 2 ? Double(parts[2]) ?? 0 : 0
+            switch parts[1] {
+            case "bloom": cues.append((t, .bloom))
+            case "bass": cues.append((t, .addBass))
+            case "tick": cues.append((t, .tick(Int(value))))
+            case "warmth": cues.append((t, .warmth(value)))
+            case "shuffle": cues.append((t, .addShuffle))
+            case "resolve": cues.append((t, .resolve))
+            case "fade": fade = t
+            default: break
+            }
+        }
+        return (cues.sorted { $0.0 < $1.0 }, fade)
+    }
+
     /// Renders the score without an audio device (smoke checks and `--render-premiere-music`), following the
     /// welcome's cues on a timeline. Returns the level in dBFS.
-    static func renderOffline(seconds: Double, to file: URL? = nil) throws -> (peakDBFS: Double, rmsDBFS: Double) {
+    static func renderOffline(seconds: Double, to file: URL? = nil, cues: [(Double, Cue)]? = nil,
+                              fadeOutAt: Double? = nil) throws -> (peakDBFS: Double, rmsDBFS: Double) {
         let rate = 44_100.0
         let synth = LofiSynth(sampleRate: rate)
         synth.fadeIn(seconds: 2)
-        let timeline: [(Double, Cue)] = [(2.6, .bloom), (6, .addBass), (6.4, .tick(0)), (6.7, .tick(1)), (7.0, .tick(2)),
-                                         (7.3, .tick(3)), (7.6, .tick(4)), (12, .warmth(0.6)), (16, .addShuffle), (28, .resolve)]
+        let timeline: [(Double, Cue)] = cues ?? [(2.6, .bloom), (6, .addBass), (6.4, .tick(0)), (6.7, .tick(1)), (7.0, .tick(2)),
+                                                 (7.3, .tick(3)), (7.6, .tick(4)), (12, .warmth(0.6)), (16, .addShuffle), (28, .resolve)]
+        var fadePending = fadeOutAt
         let total = Int(seconds * rate), block = 512
         var left = [Float](repeating: 0, count: block), right = [Float](repeating: 0, count: block)
         var peak: Float = 0, sumSquares: Double = 0
@@ -75,6 +98,7 @@ final class PremiereMusic {
         var done = 0, nextCue = 0
         while done < total {
             while nextCue < timeline.count, Double(done) / rate >= timeline[nextCue].0 { synth.enqueue(timeline[nextCue].1); nextCue += 1 }
+            if let fade = fadePending, Double(done) / rate >= fade { synth.fadeOut(seconds: 3); fadePending = nil }   // finish() fades over 3s
             let frames = min(block, total - done)
             left.withUnsafeMutableBufferPointer { l in right.withUnsafeMutableBufferPointer { r in
                 synth.render(left: l.baseAddress!, right: r.baseAddress!, frames: frames)

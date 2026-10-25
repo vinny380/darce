@@ -21,7 +21,10 @@ struct BrowserPrototypeApp: App {
         }
         // Debug: write the welcome's score to a file to listen to it, then quit.
         if let path = value("--render-premiere-music") {
-            _ = try? PremiereMusic.renderOffline(seconds: 40, to: URL(fileURLWithPath: path))
+            // `--premiere-cues <file>` replays a recording's cue timeline (for a launch video's soundtrack).
+            let replay = value("--premiere-cues").flatMap { try? String(contentsOfFile: $0, encoding: .utf8) }.map(PremiereMusic.parseCues)
+            _ = try? PremiereMusic.renderOffline(seconds: Double(value("--premiere-seconds") ?? "") ?? 40, to: URL(fileURLWithPath: path),
+                                                 cues: replay?.cues, fadeOutAt: replay?.fadeOutAt)
             exit(0)
         }
         // Owned verification bundles remain isolated when a UI tool relaunches them without CLI arguments.
