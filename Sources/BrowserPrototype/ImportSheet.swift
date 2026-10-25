@@ -77,9 +77,8 @@ extension BrowserModel {
             outcome.skipped += read.skipped
             _ = await applyImportedCookies(read.cookies, outcome: &outcome, options: options)
         }
-        var seen: Set<String> = []
-        let extensions = profiles.flatMap(\.extensions).filter { seen.insert($0.id).inserted }
-        if options.extensions, !extensions.isEmpty {
+        let extensions = ImportOptions.ticked(profiles.flatMap(\.extensions), options: options)
+        if !extensions.isEmpty {
             if #available(macOS 15.4, *), let manager = ExtensionManager.shared {
                 let result = await manager.installImported(extensions)
                 outcome.counts["extensions", default: 0] += result.installed
@@ -92,17 +91,24 @@ extension BrowserModel {
     }
 
     /// Writes imported cookies into each D'arce profile's store. Replacing (the default for profiles this import
-    /// created) clears that profile's cookies first; WebKit replaces a cookie with the same domain, name and path.
+    /// created) clears the profile's cookies once, and only when there's something to put back. Keeping leaves
+    /// every cookie D'arce already has alone, so nobody gets switched to another account.
     @discardableResult
     func applyImportedCookies(_ cookies: [String: [ImportedCookie]], outcome: inout ImportOutcome, options: ImportOptions) async -> Int {
-        var total = 0
-        for (key, list) in cookies.sorted(by: { $0.key < $1.key }) {
+        var total = 0, cleared: Set<UUID> = [], existing: [UUID: Set<String>] = [:]
+        func identity(_ domain: String, _ name: String, _ path: String) -> String { "\(domain)\u{1F}\(name)\u{1F}\(path)" }
+        for (key, list) in cookies.sorted(by: { $0.key < $1.key }) where !list.isEmpty {
             guard let profileID = outcome.profileIDs[key] else { continue }
             let store = dataStore(for: profileID)
             if options.replaceCookies ?? outcome.newProfileIDs.contains(profileID) {
-                await store.removeData(ofTypes: [WKWebsiteDataTypeCookies], modifiedSince: .distantPast)
+                if cleared.insert(profileID).inserted {
+                    await store.removeData(ofTypes: [WKWebsiteDataTypeCookies], modifiedSince: .distantPast)
+                }
+            } else if existing[profileID] == nil {
+                existing[profileID] = Set(await store.httpCookieStore.allCookies().map { identity($0.domain, $0.name, $0.path) })
             }
             for cookie in list {
+                if existing[profileID]?.contains(identity(cookie.domain, cookie.name, cookie.path)) == true { continue }
                 guard let value = HTTPCookie(properties: cookie.webKitProperties) else { continue }
                 await store.httpCookieStore.setCookie(value)
                 total += 1
@@ -240,9 +246,23 @@ struct ImportSheet: View {
                     }
                 }
                 if !extensions.isEmpty {
-                    Toggle("Extensions (\(extensions.count))", isOn: $options.extensions)
-                    Text(extensions.map(\.name).joined(separator: ", ")).font(.caption).foregroundStyle(.secondary)
-                        .padding(.leading, 20).lineLimit(3)
+                    Toggle("Extensions (\(extensions.filter { !options.excludedExtensionIDs.contains($0.id) }.count) of \(extensions.count))",
+                           isOn: $options.extensions)
+                    if options.extensions {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 4) {
+                                ForEach(extensions, id: \.id) { item in
+                                    Toggle(item.name, isOn: Binding(get: { !options.excludedExtensionIDs.contains(item.id) },
+                                                                    set: { if $0 { options.excludedExtensionIDs.remove(item.id) }
+                                                                           else { options.excludedExtensionIDs.insert(item.id) } }))
+                                        .font(.callout)
+                                }
+                            }.frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 120).padding(.leading, 20)
+                        Text("Ticked extensions install with the access they had in \(browser.displayName).")
+                            .font(.caption).foregroundStyle(.secondary).padding(.leading, 20)
+                    }
                 }
                 if cookies > 0, options.cookies {
                     Text("macOS will ask for your login password so D'arce can read the cookies \(browser.displayName) saved. They stay on this Mac.")

@@ -72,7 +72,29 @@ func runImportCookiesSmoke() async -> [String: Bool] {
     _ = await model.applyImportedCookies(["chrome:Default": [imported]], outcome: &outcome, options: replace)
     let afterReplace = await store.allCookies()
     let landed = afterTwice.first { $0.name == "session" }
+
+    // Keeping (not replacing): a cookie D'arce already has wins over the imported one.
+    let existing = HTTPCookie(properties: [.domain: ".keep.invalid", .path: "/", .name: "account", .value: "A",
+                                           .expires: Date().addingTimeInterval(3_600)])!
+    await store.setCookie(existing)
+    let other = ImportedCookie(domain: ".keep.invalid", name: "account", value: "B", path: "/",
+                               expires: Date().addingTimeInterval(3_600), secure: false, httpOnly: false, sameSite: nil)
+    _ = await model.applyImportedCookies(["chrome:Default": [other]], outcome: &outcome, options: keep)
+    let kept = await store.allCookies().first { $0.name == "account" }?.value
+
+    // Replacing: two source profiles into one D'arce profile clear it once, and an empty list clears nothing.
+    var shared = outcome
+    shared.profileIDs["chrome:Profile 1"] = profileID
+    let second = ImportedCookie(domain: ".second.invalid", name: "second", value: "2", path: "/",
+                                expires: Date().addingTimeInterval(3_600), secure: false, httpOnly: false, sameSite: nil)
+    _ = await model.applyImportedCookies(["chrome:Default": [imported], "chrome:Profile 1": [second]], outcome: &shared, options: replace)
+    let both = await store.allCookies()
+    _ = await model.applyImportedCookies(["chrome:Default": []], outcome: &shared, options: replace)
+    let afterEmpty = await store.allCookies()
     return [
+        "import_keep_mode_existing_cookie_wins": kept == "A",
+        "import_replace_clears_each_store_once": both.contains { $0.name == "session" } && both.contains { $0.name == "second" },
+        "import_replace_with_nothing_clears_nothing": afterEmpty.contains { $0.name == "second" },
         "import_cookies_land_in_profile_store": first == 1 && landed?.value == "abc" && landed?.isHTTPOnly == true
             && landed?.isSecure == true && landed?.sameSitePolicy == .sameSiteLax,
         "import_cookies_twice_no_duplicates": afterTwice.filter { $0.name == "session" }.count == 1 && afterTwice.contains { $0.name == "mine" },
@@ -108,8 +130,14 @@ func runImportExtensionSmoke() async -> [String: Bool] {
     let manifest: [String: Any] = ["manifest_version": 3, "name": "Import Fixture", "version": "1.0"]
     try? JSONSerialization.data(withJSONObject: manifest).write(to: folder.appendingPathComponent("manifest.json"))
     let id = "pppppppppppppppppppppppppppppppp"
-    let result = await manager.installImported([ImportedExtension(id: id, name: "Import Fixture", files: folder)])
+    var options = ImportOptions()
+    options.excludedExtensionIDs = ["oooooooooooooooooooooooooooooooo"]
+    let unticked = ImportedExtension(id: "oooooooooooooooooooooooooooooooo", name: "Unticked", files: folder)
+    let result = await manager.installImported(ImportOptions.ticked([ImportedExtension(id: id, name: "Import Fixture", files: folder), unticked],
+                                                                    options: options))
+    let skippedUnticked = !manager.installed.contains { $0.id == unticked.id }
     let installed = manager.installed.first { $0.id == id }
     if let installed { manager.uninstall(installed) }
-    return ["import_extension_from_files_without_prompt": result.installed == 1 && installed != nil && result.skipped.isEmpty]
+    return ["import_extension_from_files_without_prompt": result.installed == 1 && installed != nil && result.skipped.isEmpty,
+            "import_extension_unticked_not_installed": skippedUnticked]
 }
