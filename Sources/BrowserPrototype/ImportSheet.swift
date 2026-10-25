@@ -70,13 +70,25 @@ extension BrowserModel {
     /// the user), then extensions. A denied keychain only costs the cookies.
     func completeBrowserImport(_ profiles: [ImportedProfile], from browser: ImportBrowser, options: ImportOptions,
                                outcome: ImportOutcome, secret: @escaping @Sendable () throws -> Data) async -> ImportOutcome {
+        let withCookies = await importCookies(profiles, from: browser, options: options, outcome: outcome, secret: secret)
+        return await installExtensions(profiles, options: options, outcome: withCookies)
+    }
+
+    /// Reads cookies (the keychain asks the person) and writes them into each D'arce profile.
+    func importCookies(_ profiles: [ImportedProfile], from browser: ImportBrowser, options: ImportOptions,
+                       outcome: ImportOutcome, secret: @escaping @Sendable () throws -> Data) async -> ImportOutcome {
+        var outcome = outcome
+        guard outcome.saved, options.cookies, profiles.contains(where: { $0.cookieCount > 0 }) else { return outcome }
+        let read = await Task.detached { ImportSources.cookies(profiles, browser: browser, secret: secret) }.value
+        outcome.skipped += read.skipped
+        _ = await applyImportedCookies(read.cookies, outcome: &outcome, options: options)
+        return outcome
+    }
+
+    /// Installs the ticked extensions (macOS 15.4+).
+    func installExtensions(_ profiles: [ImportedProfile], options: ImportOptions, outcome: ImportOutcome) async -> ImportOutcome {
         var outcome = outcome
         guard outcome.saved else { return outcome }
-        if options.cookies, profiles.contains(where: { $0.cookieCount > 0 }) {
-            let read = await Task.detached { ImportSources.cookies(profiles, browser: browser, secret: secret) }.value
-            outcome.skipped += read.skipped
-            _ = await applyImportedCookies(read.cookies, outcome: &outcome, options: options)
-        }
         let extensions = ImportOptions.ticked(profiles.flatMap(\.extensions), options: options)
         if !extensions.isEmpty {
             if #available(macOS 15.4, *), let manager = ExtensionManager.shared {

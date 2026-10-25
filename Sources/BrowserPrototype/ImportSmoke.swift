@@ -1,3 +1,4 @@
+import SwiftUI
 import BrowserCore
 import Foundation
 
@@ -176,4 +177,35 @@ func runSafariExtensionSmoke() async -> [String: Bool] {
 func runPremiereMusicSmoke() -> [String: Bool] {
     guard let level = try? PremiereMusic.renderOffline(seconds: 6) else { return ["premiere_music_renders_quietly_and_audibly": false] }
     return ["premiere_music_renders_quietly_and_audibly": level.peakDBFS <= -18 && level.rmsDBFS > -50]
+}
+
+/// Every welcome step lays out, and its words fit the browser being imported (or none).
+@MainActor
+func runPremiereSmoke() -> [String: Bool] {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("darce-premiere-smoke-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let browser = BrowserModel(directory: directory, ephemeralWebsiteData: true)
+    var arc = ImportedProfile(key: "arc:Default", name: "Default", directory: nil)
+    arc.spaces = [ImportedSpace(key: "arc-space:s", name: "Reads", tint: AppearanceColor(red: 0.5, green: 0.3, blue: 0.6),
+                                pinned: [.tab(key: "arc:t", title: "Pull Requests", url: URL(string: "https://github.com/pulls")!)])]
+    arc.favorites = [.tab(key: "arc:f", title: "Mail", url: URL(string: "https://mail.google.com/")!)]
+    let withArc = PremiereModel(browserModel: browser, installed: [.arc], isDefaultBrowser: false, prefetched: [arc], music: false)
+    let withChrome = PremiereModel(browserModel: browser, installed: [.chrome], isDefaultBrowser: false, prefetched: [], music: false)
+    let withNothing = PremiereModel(browserModel: browser, installed: [], isDefaultBrowser: true, prefetched: [], music: false)
+    var laidOut = true
+    for step in withArc.flow.steps {
+        withArc.show(step)
+        let host = NSHostingView(rootView: PremiereView(model: withArc).frame(width: 1080, height: 680))
+        host.frame = NSRect(x: 0, y: 0, width: 1080, height: 680)
+        host.layoutSubtreeIfNeeded()
+        laidOut = laidOut && host.fittingSize.width > 0
+    }
+    return [
+        "premiere_steps_render": laidOut,
+        "premiere_copy_for_arc": withArc.bringTitle == "Bring your Arc with you." && withArc.arcTints.count == 1
+            && withArc.welcomeSubtitle.hasPrefix("Your Spaces are where you left them."),
+        "premiere_copy_for_chrome": withChrome.bringTitle == "Bring your Chrome with you." && withChrome.arcTints.isEmpty,
+        "premiere_without_browsers_skips_bring_and_default": withNothing.flow.steps == [.intro, .theme, .welcome]
+            && withNothing.welcomeSubtitle == "⌘T opens anything.",
+    ]
 }
