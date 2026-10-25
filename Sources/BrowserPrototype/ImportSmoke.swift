@@ -328,3 +328,21 @@ func runPremiereBringSmoke() -> [String: Bool] {
         "premiere_bring_summary_when_nothing_is_ticked": none == "Nothing selected. You’ll start with a clean slate.",
     ]
 }
+
+/// The welcome's backdrop is the slate picked in the shader playground, until a color is picked on the theme step.
+@MainActor
+func runPremiereBackdropSmoke() -> [String: Bool] {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("darce-premiere-backdrop-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let browser = BrowserModel(directory: directory, ephemeralWebsiteData: true)
+    var arc = ImportedProfile(key: "arc:Default", name: "Default", directory: nil)
+    arc.spaces = [ImportedSpace(key: "s", name: "Reads", tint: AppearanceColor(red: 0.6, green: 0.4, blue: 0.7))]
+    let model = PremiereModel(browserModel: browser, installed: [.arc], isDefaultBrowser: true, prefetched: [arc], music: false)
+    let slateAtStart = MeshGradientView.palette(for: model.backdropTint).map(\.hex) == ["#161722", "#363a55", "#545a83", "#abaec0"]
+    let green = PremiereModel.curatedTints[0]
+    model.pick(green)
+    return [
+        "premiere_backdrop_starts_slate": slateAtStart,
+        "premiere_backdrop_follows_a_picked_color": model.backdropTint == green,
+    ]
+}

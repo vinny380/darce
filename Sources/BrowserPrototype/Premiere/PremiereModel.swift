@@ -53,6 +53,10 @@ final class PremiereModel: ObservableObject {
         AppearanceColor(red: 0.29, green: 0.47, blue: 0.77), AppearanceColor(red: 0.73, green: 0.63, blue: 0.29),
         AppearanceColor(red: 0.54, green: 0.56, blue: 0.62),
     ]
+    /// The welcome's backdrop: the slate picked in the shader playground, until someone picks a color.
+    static let backdropSlate = AppearanceColor(red: 0.4, green: 0.42, blue: 0.55)
+    var backdropTint: AppearanceColor { tintPicked ? tint : Self.backdropSlate }
+
     /// What VoiceOver says for each curated swatch.
     static let curatedNames = ["Green", "Ember", "Blue", "Gold", "Graphite"]
 

@@ -11,7 +11,7 @@ struct PremiereView: View {
 
     var body: some View {
         ZStack {
-            PremiereBackground(tint: model.tint)
+            PremiereBackground(tint: model.backdropTint)
             content
                 .id(step)
                 .transition(stepTransition)
