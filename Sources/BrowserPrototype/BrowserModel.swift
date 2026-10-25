@@ -579,9 +579,18 @@ final class BrowserPage: NSObject, ObservableObject, WKNavigationDelegate, WKUID
     private var titleObservation: NSKeyValueObservation?
     private var navigationObservations: [NSKeyValueObservation] = []
 
+    /// Plain WebKit apps leave Safari's "Version/… Safari/…" out of the user agent, and sites such as WhatsApp Web
+    /// then turn them away as an old browser. D'arce runs the same engine as the installed Safari, so say so.
+    static let safariUserAgent: String = {
+        let version = Bundle(path: "/Applications/Safari.app")?.infoDictionary?["CFBundleShortVersionString"] as? String
+        let valid = version.map { !$0.isEmpty && $0.allSatisfy { $0.isNumber || $0 == "." } } ?? false
+        return "Version/\(valid ? version! : "18.0") Safari/605.1.15"
+    }()
+
     init(url: URL, dataStore: WKWebsiteDataStore, extensions: Bool = false) {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = dataStore
+        configuration.applicationNameForUserAgent = Self.safariUserAgent
         joinsExtensions = extensions
         if extensions { Extensions.attach(configuration) }
         WebInspector.enableDeveloperExtras(configuration)

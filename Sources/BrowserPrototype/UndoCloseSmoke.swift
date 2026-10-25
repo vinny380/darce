@@ -117,3 +117,19 @@ func runEmojiSpaceIconSmoke(model: BrowserModel) -> [String: Bool] {
     _ = model.appearance.update { $0.spaces[space, default: SpaceAppearance()].icon = original }
     return ["emoji_space_icon_saves": saved && kept, "junk_space_icon_rejected": !junk]
 }
+
+/// Sites like WhatsApp Web turn away browsers that don't say they're Safari ("works with Safari 15+").
+@MainActor
+func runUserAgentSmoke() async -> [String: Bool] {
+    let page = BrowserPage(url: URL(string: "about:blank")!, dataStore: .nonPersistent())
+    page.webView.loadHTMLString("<title>UA</title>", baseURL: URL(string: "https://user-agent.invalid/"))
+    var agent = ""
+    for _ in 0..<100 {
+        if !page.webView.isLoading, let value = try? await page.webView.evaluateJavaScript("navigator.userAgent") as? String {
+            agent = value
+            break
+        }
+        try? await Task.sleep(for: .milliseconds(50))
+    }
+    return ["user_agent_says_safari": agent.contains(" Version/") && agent.hasSuffix(" Safari/605.1.15")]
+}
