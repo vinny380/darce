@@ -22,13 +22,14 @@ private func names(_ items: [ImportedItem]) -> [String] {
     }
 }
 
-@Test func readsSpacesInOrderWithEmojiAndTint() throws {
+@Test func readsSpacesInOrderWithIconsAndTint() throws {
     let (profiles, _) = try readStandard()
     let main = try #require(profiles.first { $0.key == "arc:Default" })
     #expect(main.spaces.map(\.name) == ["Work", "Space"])
-    #expect(main.spaces[0].emoji == "🚀")
+    #expect(main.spaces[0].icon == "globe.americas.fill")
+    #expect(main.spaces[1].icon == "🚀")
     #expect(main.spaces[0].tint == AppearanceColor(red: 0.2, green: 0.4, blue: 0.6))
-    #expect(main.spaces[1].emoji == nil && main.spaces[1].tint == nil)
+    #expect(main.spaces[1].tint == nil)
 }
 
 @Test func keepsFolderNestingAndSplits() throws {
@@ -66,4 +67,11 @@ private func names(_ items: [ImportedItem]) -> [String] {
     let main = try #require(profiles.first { $0.key == "arc:Default" })
     #expect(!names(main.spaces[0].pinned).contains("Bad"))
     #expect(main.skipped.count == 1)
+}
+
+@Test func arcIconNamesMapToSymbolsAndUnknownOnesFallBack() {
+    #expect(ArcSidebarReader.symbol(forArcIcon: "planet") == "globe.americas.fill")
+    #expect(ArcSidebarReader.symbol(forArcIcon: "logoGithub") == "chevron.left.forwardslash.chevron.right")
+    #expect(ArcSidebarReader.symbol(forArcIcon: "cloudOutline") == "cloud.fill")
+    #expect(ArcSidebarReader.symbol(forArcIcon: "somethingNew") == nil)
 }

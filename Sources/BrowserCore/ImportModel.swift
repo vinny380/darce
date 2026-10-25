@@ -12,14 +12,15 @@ public indirect enum ImportedItem: Equatable, Sendable {
 public struct ImportedSpace: Equatable, Sendable {
     public var key: String
     public var name: String
-    public var emoji: String?
+    /// An SF Symbol name or a single emoji.
+    public var icon: String?
     public var tint: AppearanceColor?
     public var pinned: [ImportedItem]
     public var today: [ImportedItem]
 
-    public init(key: String, name: String, emoji: String? = nil, tint: AppearanceColor? = nil,
+    public init(key: String, name: String, icon: String? = nil, tint: AppearanceColor? = nil,
                 pinned: [ImportedItem] = [], today: [ImportedItem] = []) {
-        self.key = key; self.name = name; self.emoji = emoji; self.tint = tint; self.pinned = pinned; self.today = today
+        self.key = key; self.name = name; self.icon = icon; self.tint = tint; self.pinned = pinned; self.today = today
     }
 }
 

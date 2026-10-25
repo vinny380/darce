@@ -41,7 +41,9 @@ extension BrowserModel {
         _ = appearance.update { preferences in
             for (space, style) in outcome.spaceStyles {
                 var looks = preferences.space(space)
-                if let emoji = style.emoji, AppearancePreferences.isEmojiIcon(emoji) { looks.icon = emoji }
+                if let icon = style.icon, AppearancePreferences.isEmojiIcon(icon) || NSImage(systemSymbolName: icon, accessibilityDescription: nil) != nil {
+                    looks.icon = icon
+                }
                 if let tint = style.tint { looks.tint = tint }
                 preferences.spaces[space] = looks
             }

@@ -53,13 +53,13 @@ struct ArcSidebarFixture {
     }
 
     @discardableResult
-    mutating func space(title: String?, profile: [String: Any] = defaultProfile, emoji: String? = nil,
+    mutating func space(title: String?, profile: [String: Any] = defaultProfile, icon: [String: String]? = nil,
                         color: (Double, Double, Double)? = nil, pinned: [Node] = [], today: [Node] = []) -> String {
         let id = newID("space")
         let pinnedID = container(["spaceItems": ["_0": id]], nodes: pinned)
         let todayID = container(["spaceItems": ["_0": id]], nodes: today)
         var custom: [String: Any] = [:]
-        if let emoji { custom["iconType"] = ["icon": emoji] }
+        if let icon { custom["iconType"] = icon }
         if let color {
             let rgb: [String: Any] = ["red": color.0, "green": color.1, "blue": color.2, "alpha": 1, "colorSpace": "extendedSRGB"]
             custom["windowTheme"] = ["background": ["single": ["_0": ["style": ["color": ["_0": [
@@ -86,13 +86,13 @@ struct ArcSidebarFixture {
     /// an unnamed Space, a Space on a custom profile that isn't on disk, and two Favorites.
     static func standard() -> ArcSidebarFixture {
         var fixture = ArcSidebarFixture()
-        fixture.space(title: "Work", emoji: "🚀", color: (0.2, 0.4, 0.6), pinned: [
+        fixture.space(title: "Work", icon: ["icon": "planet"], color: (0.2, 0.4, 0.6), pinned: [
             .tab("Mail", "https://mail.example/"),
             .folder("Docs", [.tab("Spec", "https://docs.example/spec"), .folder("Deep", [.tab("Note", "https://docs.example/note")])]),
             .split([.tab("Left", "https://left.example/"), .tab("Right", "https://right.example/")], vertical: false),
             .tab("Bad", "javascript:alert(1)"),
         ], today: [.tab("News", "https://news.example/")])
-        fixture.space(title: nil)
+        fixture.space(title: nil, icon: ["emoji": "🚀"])
         fixture.space(title: "Side", profile: customProfile("Profile 9"), pinned: [.tab("Side", "https://side.example/")])
         fixture.favorites([.tab("Calendar", "https://calendar.example/"), .tab("Chat", "https://chat.example/")])
         return fixture

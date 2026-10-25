@@ -8,7 +8,7 @@ func runBrowserImportSmoke() -> [String: Bool] {
     defer { try? FileManager.default.removeItem(at: directory) }
     let model = BrowserModel(directory: directory, ephemeralWebsiteData: true)
     var profile = ImportedProfile(key: "arc:Default", name: "Default", directory: nil)
-    profile.spaces = [ImportedSpace(key: "arc-space:smoke", name: "Imported", emoji: "🚀",
+    profile.spaces = [ImportedSpace(key: "arc-space:smoke", name: "Imported", icon: "🚀",
                                     tint: AppearanceColor(red: 0.2, green: 0.4, blue: 0.6),
                                     pinned: [.folder(key: "arc:folder", title: "Reading",
                                                      children: [.tab(key: "arc:pin", title: "Pin", url: URL(string: "https://pin.invalid/")!)])])]

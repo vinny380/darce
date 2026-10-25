@@ -10,7 +10,7 @@ private func tab(_ key: String, _ title: String) -> ImportedItem {
 private func arcProfile() -> ImportedProfile {
     var profile = ImportedProfile(key: "arc:Default", name: "Default", directory: nil)
     profile.spaces = [
-        ImportedSpace(key: "arc-space:1", name: "Work", emoji: "🚀", tint: AppearanceColor(red: 0.2, green: 0.4, blue: 0.6),
+        ImportedSpace(key: "arc-space:1", name: "Work", icon: "🚀", tint: AppearanceColor(red: 0.2, green: 0.4, blue: 0.6),
                       pinned: [tab("arc:a", "Mail"),
                                .folder(key: "arc:f", title: "Docs", children: [tab("arc:b", "Spec"),
                                        .folder(key: "arc:g", title: "Deep", children: [tab("arc:c", "Note")])]),
@@ -39,7 +39,7 @@ private func title(_ state: BrowserState, _ id: UUID?) -> String? { state.tabs.f
     #expect(state.spaces.map(\.name) == ["Work", "Home"])
     #expect(state.profiles.map(\.name) == ["Default"] && state.profiles.count == 1)
     #expect(outcome.firstSpaceID == state.spaces[0].id)
-    #expect(outcome.spaceStyles[state.spaces[0].id] == SpaceStyle(emoji: "🚀", tint: AppearanceColor(red: 0.2, green: 0.4, blue: 0.6)))
+    #expect(outcome.spaceStyles[state.spaces[0].id] == SpaceStyle(icon: "🚀", tint: AppearanceColor(red: 0.2, green: 0.4, blue: 0.6)))
     try state.validate()
 }
 

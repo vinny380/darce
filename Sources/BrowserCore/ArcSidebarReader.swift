@@ -40,7 +40,7 @@ public enum ArcSidebarReader {
             let title = (space["title"] as? String).flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 }
             profiles[index].spaces.append(ImportedSpace(
                 key: "arc-space:\(id)", name: title ?? "Space",
-                emoji: (custom?["iconType"] as? [String: Any])?["icon"] as? String,
+                icon: icon(custom?["iconType"]),
                 tint: tint(custom?["windowTheme"]), pinned: pinned, today: today))
             profiles[index].skipped += skipped
         }
@@ -93,6 +93,40 @@ public enum ArcSidebarReader {
         }
         return nil
     }
+
+    /// A Space's icon is either one of Arc's named icons (mapped to an SF Symbol) or an emoji.
+    private static func icon(_ value: Any?) -> String? {
+        guard let icon = value as? [String: Any] else { return nil }
+        if let emoji = (icon["emoji"] ?? icon["icon"]) as? String, AppearancePreferences.isEmojiIcon(emoji) { return emoji }
+        return (icon["icon"] as? String).flatMap(symbol(forArcIcon:))
+    }
+
+    /// Arc's icon names, mapped to the closest SF Symbol. Unknown names keep D'arce's default icon.
+    public static func symbol(forArcIcon name: String) -> String? {
+        var base = name.lowercased()
+        for affix in ["outline", "sharp"] where base.hasSuffix(affix) { base.removeLast(affix.count) }
+        if base.hasPrefix("logo") { base.removeFirst(4) }
+        return arcIcons[base]
+    }
+
+    private static let arcIcons: [String: String] = [
+        "airplane": "airplane", "albums": "square.stack.fill", "apps": "square.grid.2x2.fill", "bandage": "bandage.fill",
+        "barbell": "dumbbell.fill", "baseball": "baseball.fill", "book": "book.fill", "bookmark": "bookmark.fill",
+        "briefcase": "briefcase.fill", "bulb": "lightbulb.fill", "calendar": "calendar", "camera": "camera.fill",
+        "cart": "cart.fill", "chatbubbles": "bubble.left.and.bubble.right.fill", "checkbox": "checkmark.square.fill",
+        "cloud": "cloud.fill", "code": "chevron.left.forwardslash.chevron.right", "colorpalette": "paintpalette.fill",
+        "construct": "hammer.fill", "copy": "doc.on.doc.fill", "document": "doc.fill", "ellipse": "circle.fill",
+        "figma": "paintbrush.pointed.fill", "filetray": "tray.fill", "flag": "flag.fill", "flash": "bolt.fill",
+        "folder": "folder.fill", "gamecontroller": "gamecontroller.fill", "gift": "gift.fill",
+        "github": "chevron.left.forwardslash.chevron.right", "globe": "globe", "grid": "square.grid.3x3.fill",
+        "heart": "heart.fill", "home": "house.fill", "layers": "square.3.layers.3d", "leaf": "leaf.fill",
+        "mail": "envelope.fill", "medical": "cross.case.fill", "moon": "moon.fill", "musicalnotes": "music.note",
+        "notifications": "bell.fill", "people": "person.2.fill", "person": "person.fill", "planet": "globe.americas.fill",
+        "receipt": "doc.text.fill", "restaurant": "fork.knife", "rocket": "paperplane.fill", "school": "graduationcap.fill",
+        "search": "magnifyingglass", "shapes": "square.on.circle", "skull": "theatermasks.fill", "square": "square.fill",
+        "star": "star.fill", "sunny": "sun.max.fill", "terminal": "terminal.fill", "thumbsup": "hand.thumbsup.fill",
+        "train": "tram.fill", "triangle": "triangle.fill", "video": "video.fill", "videocam": "video.fill",
+    ]
 
     private static func tint(_ theme: Any?) -> AppearanceColor? {
         var node: Any? = theme

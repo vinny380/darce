@@ -14,9 +14,10 @@ public struct ImportOptions: Equatable, Sendable {
 }
 
 public struct SpaceStyle: Equatable, Sendable {
-    public var emoji: String?
+    /// An SF Symbol name or a single emoji.
+    public var icon: String?
     public var tint: AppearanceColor?
-    public init(emoji: String?, tint: AppearanceColor?) { self.emoji = emoji; self.tint = tint }
+    public init(icon: String?, tint: AppearanceColor?) { self.icon = icon; self.tint = tint }
 }
 
 public struct ProfileHistory: Equatable, Sendable {
@@ -112,7 +113,7 @@ extension BrowserState {
                                                        create: { $0.makeSpace(space.name, profileID: profileID) }) else { continue }
                 if created {
                     outcome.counts["spaces", default: 0] += 1
-                    if space.emoji != nil || space.tint != nil { outcome.spaceStyles[spaceID] = SpaceStyle(emoji: space.emoji, tint: space.tint) }
+                    if space.icon != nil || space.tint != nil { outcome.spaceStyles[spaceID] = SpaceStyle(icon: space.icon, tint: space.tint) }
                 }
                 note(spaceID, &outcome)
                 importItems(space.pinned, kind: .pinned, space: spaceID, folder: nil, counter: "tabs", outcome: &outcome)
