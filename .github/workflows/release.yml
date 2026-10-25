@@ -1,0 +1,72 @@
+name: Release
+
+# Run from the Actions tab, or: gh workflow run release.yml -f version=0.1.1
+# Tests, then scripts/release.sh: builds the DMG and zip, publishes the GitHub release, and bumps the
+# Homebrew cask in vinny380/homebrew-tap (pushed with the HOMEBREW_TAP_DEPLOY_KEY deploy key).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, like 0.1.1"
+        required: true
+      dry_run:
+        description: "Build and show what would change, publish nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Toolchain
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+          xcodebuild -version
+          swift --version
+
+      - name: Test
+        run: swift test
+
+      - name: Load the Homebrew tap deploy key
+        if: ${{ !inputs.dry_run }}
+        env:
+          KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          eval "$(ssh-agent -s)"
+          echo "$KEY" | ssh-add -
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          TAP_REMOTE: ${{ inputs.dry_run && 'https://github.com/vinny380/homebrew-tap.git' || 'git@github.com:vinny380/homebrew-tap.git' }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          scripts/release.sh "$VERSION"
+
+      - name: Keep the build
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: darce-${{ inputs.version }}
+          path: dist/*.dmg
+          if-no-files-found: ignore

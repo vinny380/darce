@@ -3,11 +3,12 @@
 # (vinny380/homebrew-tap) at the new DMG.
 #   scripts/release.sh <version> [notes.md]
 # Without a notes file, GitHub writes the notes from the merged changes. Checksums are appended either way.
-# DRY_RUN=1 builds and shows the cask change, but publishes nothing.
+# DRY_RUN=1 builds and shows the cask change, but publishes nothing. .github/workflows/release.yml runs this in CI.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 version=${1:?usage: scripts/release.sh <version> [notes.md]}
 notes=${2:-}
+[[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Version must look like 1.2.3." >&2; exit 1; }
 tag="v$version"
 dry=${DRY_RUN:-0}
 
@@ -27,8 +28,9 @@ body=$(mktemp)
 printf '\n**Checksums (SHA-256)**\n- `%s` `%s`\n- `%s` `%s`\n' "$(basename "$dmg")" "$dmg_sha" "$(basename "$zip")" "$zip_sha" >> "$body"
 
 # Homebrew: the cask's version and checksum follow the DMG.
+# CI pushes with a deploy key over SSH (TAP_REMOTE); locally, gh's own login is used.
 tap=$(mktemp -d)
-gh repo clone vinny380/homebrew-tap "$tap" -- -q
+if [[ -n ${TAP_REMOTE:-} ]]; then git clone -q "$TAP_REMOTE" "$tap"; else gh repo clone vinny380/homebrew-tap "$tap" -- -q; fi
 sed -i '' -e "s/^  version \".*\"/  version \"$version\"/" -e "s/^  sha256 \".*\"/  sha256 \"$dmg_sha\"/" "$tap/Casks/darce.rb"
 
 if [[ $dry == 1 ]]; then
