@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="Assets/AppIcon.png" alt="D'arce app icon: a dawn rising over a horizon" width="140">
+</p>
+
+<p align="center">
   <img src=".github/assets/banner.svg" alt="D'arce: a native macOS browser inspired by Arc" width="100%">
 </p>
 
