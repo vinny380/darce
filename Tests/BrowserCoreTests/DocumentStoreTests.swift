@@ -65,7 +65,7 @@ private let documentPNG = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABC
     let card = try store.addTextCard(documentID: easel, profileID: profile, text: "Keep")
     let manifest = directory.appendingPathComponent("documents/manifest.json")
     let original = try Data(contentsOf: manifest), snapshot = store.documents(profileID: profile)
-    for invalid in [Double.nan, .infinity, -1, 20_001] {
+    for invalid in [Double.nan, .infinity, -1_000_001, 1_000_001] {  // the canvas is infinite, but not unbounded
         #expect(throws: (any Error).self) { try store.updateCard(card, documentID: easel, profileID: profile, x: invalid, y: 0, width: 200, height: 200) }
         #expect(try Data(contentsOf: manifest) == original)
         #expect(store.documents(profileID: profile) == snapshot)

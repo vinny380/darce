@@ -300,7 +300,7 @@ public struct DocumentStore: Sendable {
                 let (minWidth, minHeight): (Double, Double) = card.content.isDrawing ? (0, 0) : (120, 80)
                 guard identities.insert(card.id).inserted,
                       [card.x, card.y, card.width, card.height].allSatisfy(\.isFinite),
-                      (0...20_000).contains(card.x), (0...20_000).contains(card.y),
+                      (-1_000_000...1_000_000).contains(card.x), (-1_000_000...1_000_000).contains(card.y),  // an infinite canvas
                       (minWidth...4000).contains(card.width), (minHeight...4000).contains(card.height),
                       card.content.color.map(Self.isHexColor) ?? true else { throw DocumentStoreError.invalidRecords }
                 if case .stroke(let points, _) = card.content {
