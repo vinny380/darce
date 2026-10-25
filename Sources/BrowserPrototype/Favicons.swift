@@ -145,7 +145,9 @@ struct SiteIcon: View {
 
     var body: some View {
         Group {
-            if let image = controller.image(for: url, profileID: profileID) {
+            if url.easelID != nil {
+                Image(systemName: "scribble.variable").resizable().scaledToFit().foregroundStyle(Color.accentColor)
+            } else if let image = controller.image(for: url, profileID: profileID) {
                 Image(nsImage: image).renderingMode(.original).resizable().interpolation(.high).scaledToFit()
             } else if let first = url.host?.first {
                 Text(String(first).uppercased()).font(.system(size: size * 0.62, weight: .semibold))

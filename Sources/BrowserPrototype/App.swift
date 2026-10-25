@@ -402,7 +402,10 @@ struct BrowserWindow: View {
     }
 
     @ViewBuilder private var content: some View {
-        if let id = model.state.selectedTabID, let page = model.page(for: id) {
+        if let tab = model.state.selectedTab, let easel = tab.url.easelID {
+            EaselCanvas(model: model, documents: model.documents, documentID: easel, tabID: tab.id)
+                .id(tab.id).clipShape(RoundedRectangle(cornerRadius: 10))
+        } else if let id = model.state.selectedTabID, let page = model.page(for: id) {
             VStack(spacing: 0) {
                 if model.isDeveloperModeOn {
                     let tint = appearance.state.space(model.state.selectedSpaceID).tint

@@ -5,6 +5,15 @@ import Foundation
 import WebKit
 
 enum CommandMode { case newTab, location, split }
+
+/// Easels live in the sidebar like tabs (as in Arc): a tab whose URL is darce://easel/<document id>.
+extension URL {
+    static func easel(_ id: UUID) -> URL { URL(string: "darce://easel/\(id.uuidString)")! }
+    var easelID: UUID? {
+        guard scheme == "darce", host == "easel" else { return nil }
+        return UUID(uuidString: lastPathComponent)
+    }
+}
 enum LibraryPanel: String, Identifiable { case profiles, history, downloads, appearance, boosts, documents, browsingData, spaces; var id: String { rawValue } }
 
 @MainActor
@@ -204,6 +213,7 @@ final class BrowserModel: ObservableObject {
         guard !isWindowClosed, let owner = state.profileID(forTab: id), !clearingProfiles.contains(owner),
               let tab = state.tabs.first(where: { $0.id == id && $0.kind != .archived }) else { return nil }
         if let page = pages[id] { return page }
+        guard tab.url.easelID == nil else { return nil }  // Easels draw their own canvas, never a web page
         guard let profileID = state.profileID(forTab: id) else { return nil }
         let page = BrowserPage(url: tab.url, dataStore: dataStore(for: profileID), extensions: true)
         page.owner = self
@@ -268,6 +278,19 @@ final class BrowserModel: ObservableObject {
     func selectSpace(_ id: UUID) { stateUpdate { $0.selectSpace(id) } }
     func pin(_ id: UUID, kind: TabKind) { stateUpdate { $0.setKind(id, kind: kind) } }
     func move(_ id: UUID, to space: UUID) { stateUpdate { $0.moveTab(id, to: space) } }
+    /// Arc's New Easel (⌃⇧E): a blank canvas, opened as a tab in this Space.
+    func newEasel() {
+        guard let id = documents.create(kind: .easel, profileID: state.selectedProfileID) else { return }
+        stateUpdate { _ = $0.openTab(url: .easel(id), title: "Untitled Easel") }
+    }
+
+    /// Opens an existing Easel, reusing its tab if it already has one.
+    func openEasel(_ id: UUID) {
+        if let tab = state.visibleTabs.first(where: { $0.url.easelID == id }) { select(tab.id); return }
+        let title = documents.document(id, profileID: state.selectedProfileID)?.title ?? "Easel"
+        stateUpdate { _ = $0.openTab(url: .easel(id), title: title) }
+    }
+
     func archive(_ id: UUID) { closeWithUndo([id], name: "Close Tab") { $0.archiveTab(id) } }
 
     /// ⌘W, like Arc: a Today tab is archived (⌘Z brings it back); a pinned tab or Favorite closes its page but

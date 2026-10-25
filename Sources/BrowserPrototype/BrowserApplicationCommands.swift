@@ -30,6 +30,8 @@ struct BrowserApplicationCommands: Commands {
                 }.keyboardShortcut("t")
                 Button("New Private Window") { privateWindows.open() }.keyboardShortcut("n", modifiers: [.command, .shift])
                 Button("New Mini Window") { MiniWindows.shared.openLauncher() }.keyboardShortcut("n", modifiers: [.command, .option])
+                Button("New Easel") { activeModel.newEasel() }.keyboardShortcut("e", modifiers: [.control, .shift])
+                    .disabled(privateWindows.isPrivateWindowActive)
                 Button("Reopen Last Archived Tab") { activeModel.reopenLastArchived() }.keyboardShortcut("t", modifiers: [.command, .shift])
                     .disabled(privateWindows.isPrivateWindowActive || activeModel.archivedTabs.isEmpty)
                 Button("Open Location") {

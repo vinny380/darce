@@ -49,6 +49,15 @@ final class DocumentController: ObservableObject {
     }
 
     @discardableResult
+    func addCard(_ content: DocumentCardContent, to id: UUID, profileID: UUID, frame: CGRect) -> UUID? {
+        change { try $0.addCard(content, documentID: id, profileID: profileID, x: max(0, frame.minX), y: max(0, frame.minY),
+                                width: frame.width, height: frame.height) }
+    }
+
+    func deleteCard(_ cardID: UUID, from id: UUID, profileID: UUID) {
+        _ = change { try $0.deleteCard(cardID, documentID: id, profileID: profileID) }
+    }
+
     func addTextCard(_ id: UUID, profileID: UUID) -> UUID? {
         change { try $0.addTextCard(documentID: id, profileID: profileID) }
     }

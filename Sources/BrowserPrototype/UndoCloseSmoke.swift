@@ -64,3 +64,23 @@ func runClosePinnedSmoke(model: BrowserModel) -> [String: Bool] {
     checks["close_today_still_archives"] = model.state.tabs.first { $0.id == other }?.kind == .archived
     return checks
 }
+
+/// Easel contract (Arc's ⌃⇧E): a new Easel opens as a sidebar item that draws a canvas (never a web page),
+/// survives being reopened, and closing it keeps the Easel itself.
+@MainActor
+func runEaselSmoke(model: BrowserModel) -> [String: Bool] {
+    let before = model.documents.documents(profileID: model.state.selectedProfileID).count
+    model.newEasel()
+    guard let tab = model.state.selectedTab, let easel = tab.url.easelID else { return ["easel_opens_as_tab": false] }
+    var checks = ["easel_opens_as_tab": tab.title == "Untitled Easel"]
+    checks["easel_document_created"] = model.documents.documents(profileID: model.state.selectedProfileID).count == before + 1
+    checks["easel_never_loads_a_web_page"] = model.page(for: tab.id) == nil
+    let shape = model.documents.addCard(.shape(.rectangle, color: "#FF5A5F"), to: easel, profileID: model.state.selectedProfileID,
+                                        frame: CGRect(x: 100, y: 120, width: 200, height: 120))
+    checks["easel_drawing_saved"] = shape != nil
+    model.closeCurrentTab()
+    checks["easel_kept_after_closing_tab"] = model.documents.document(easel, profileID: model.state.selectedProfileID)?.cards.count == 1
+    model.openEasel(easel)
+    checks["easel_reopens_from_library"] = model.state.selectedTab?.url.easelID == easel
+    return checks
+}

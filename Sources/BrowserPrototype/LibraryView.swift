@@ -193,7 +193,9 @@ struct LibraryView: View {
                     LibraryRow(title: document.title, subtitle: document.kind == .note ? "Note" : "Easel") {
                         Image(systemName: document.kind == .note ? "note.text" : "scribble.variable").font(.system(size: 18)).frame(width: 34, height: 34)
                     }
-                    .onTapGesture { model.panel = .documents }
+                    .onTapGesture {
+                        if document.kind == .easel { model.openEasel(document.id); model.libraryOpen = false } else { model.panel = .documents }
+                    }
                 }
             }
         }

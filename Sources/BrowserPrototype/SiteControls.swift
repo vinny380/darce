@@ -12,6 +12,22 @@ struct AddressBar: View {
     private var url: URL? { model.state.selectedTab.flatMap { model.page(for: $0.id)?.webView.url ?? $0.url } }
 
     var body: some View {
+        if url?.easelID != nil {
+            // An Easel has no web address, like Arc's: its name in place of the URL.
+            HStack(spacing: 8) {
+                Image(systemName: "scribble.variable").font(.system(size: 11))
+                Text(model.state.selectedTab?.title ?? "Easel").font(.system(size: 13, weight: .medium)).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12).frame(height: 36)
+            .foregroundStyle(.primary.opacity(0.65))
+            .background(Palette.color("SidebarItemBackground", scheme: scheme), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        } else {
+            addressBar
+        }
+    }
+
+    private var addressBar: some View {
         HStack(spacing: 4) {
             HStack(spacing: 8) {
                 if url == nil { Image(systemName: "magnifyingglass").font(.system(size: 10)) }
