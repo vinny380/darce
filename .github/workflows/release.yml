@@ -23,7 +23,8 @@ concurrency:
 
 jobs:
   release:
-    runs-on: macos-26
+    # Xcode 27 to match development (still a GitHub preview image); Xcode 26.6 on macos-26 hits Swift 6.3 compiler bugs.
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
