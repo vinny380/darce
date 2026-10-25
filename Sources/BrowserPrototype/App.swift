@@ -58,7 +58,8 @@ struct BrowserPrototypeApp: App {
                         await runNetworkSmoke(model: model, base: fixtureBase, phase: networkPhase, output: smokeOutput)
                     } else if let smokeOutput { await runSmoke(model: model, output: smokeOutput) }
                     else if let importFrom {
-                        let report = await model.importWithoutAsking(from: importFrom)
+                        let report = await model.importWithoutAsking(from: importFrom,
+                                                                     cookies: ProcessInfo.processInfo.arguments.contains("--import-cookies"))
                         let encoder = JSONEncoder()
                         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
                         try? encoder.encode(report).write(to: importResult, options: .atomic)

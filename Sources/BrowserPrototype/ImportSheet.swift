@@ -119,13 +119,16 @@ extension BrowserModel {
     }
 
     /// `--import-from <browser>`: imports everything into new profiles without asking, for end-to-end checks.
-    func importWithoutAsking(from browser: ImportBrowser) async -> ImportReport {
+    /// Cookies need the keychain (a system prompt), so they're only read with `--import-cookies`.
+    func importWithoutAsking(from browser: ImportBrowser, cookies: Bool) async -> ImportReport {
         let home = FileManager.default.homeDirectoryForCurrentUser
         do {
             let profiles = try await Task.detached { try ImportSources.read(browser, home: home) }.value
-            var outcome = applyBrowserImport(profiles, from: browser, into: .newProfiles, options: ImportOptions())
+            var options = ImportOptions()
+            options.cookies = cookies
+            var outcome = applyBrowserImport(profiles, from: browser, into: .newProfiles, options: options)
             let keychain = browser.safeStorage
-            outcome = await completeBrowserImport(profiles, from: browser, options: ImportOptions(), outcome: outcome) {
+            outcome = await completeBrowserImport(profiles, from: browser, options: options, outcome: outcome) {
                 try SafeStorage.secret(service: keychain.service, account: keychain.account)
             }
             return ImportReport(counts: outcome.counts, skipped: outcome.skipped)
