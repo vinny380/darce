@@ -49,6 +49,10 @@ final class ExtensionManager: NSObject, ObservableObject, WKWebExtensionControll
     // A fixed identifier keeps extension storage (settings, logins) across launches.
     let controller = WKWebExtensionController(configuration: .init(identifier: UUID(uuidString: "0D4A7C3E-6B1F-4F5A-9E2D-DA4CE0000001")!))
     @Published private(set) var installed: [InstalledExtension] = []
+    /// Safari extensions turned on, by bundle identifier → the .appex inside its app. They load in place.
+    @Published private(set) var safariEnabled: [String: String] = [:]
+    var enabledSafariIDs: Set<String> { Set(safariEnabled.keys) }
+    private var safariListFile: URL { directory.deletingLastPathComponent().appendingPathComponent("safari-extensions.json") }
     @Published var lastError: String?
     let directory: URL
     /// The sidebar address bar of each window; extension popups open beside it.
@@ -65,6 +69,15 @@ final class ExtensionManager: NSObject, ObservableObject, WKWebExtensionControll
     // MARK: Installing
 
     private func loadInstalled() async {
+        if let data = try? Data(contentsOf: safariListFile), let saved = try? JSONDecoder().decode([String: String].self, from: data) {
+            safariEnabled = saved
+            for (identifier, path) in saved.sorted(by: { $0.key < $1.key }) {
+                do {
+                    guard let bundle = Bundle(url: URL(fileURLWithPath: path)) else { throw CocoaError(.fileNoSuchFile) }
+                    _ = try activate(try await WKWebExtension(appExtensionBundle: bundle), id: "safari:\(identifier)")
+                } catch { lastError = "\(identifier) couldn't load: \(error.localizedDescription)" }
+            }
+        }
         let folders = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
         for folder in folders.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) where folder.hasDirectoryPath {
             do { try await load(folder) } catch { lastError = "\(folder.lastPathComponent) couldn't load: \(error.localizedDescription)" }
@@ -74,14 +87,17 @@ final class ExtensionManager: NSObject, ObservableObject, WKWebExtensionControll
     /// Everything in the folder was approved when it was installed, so its requested access is granted again.
     @discardableResult
     private func load(_ folder: URL) async throws -> InstalledExtension {
-        let webExtension = try await WKWebExtension(resourceBaseURL: folder)
+        try activate(try await WKWebExtension(resourceBaseURL: folder), id: folder.lastPathComponent)
+    }
+
+    private func activate(_ webExtension: WKWebExtension, id: String) throws -> InstalledExtension {
         let context = WKWebExtensionContext(for: webExtension)
-        context.uniqueIdentifier = folder.lastPathComponent
+        context.uniqueIdentifier = id
         context.isInspectable = true
         for permission in webExtension.requestedPermissions { context.setPermissionStatus(.grantedExplicitly, for: permission) }
         for pattern in webExtension.allRequestedMatchPatterns { context.setPermissionStatus(.grantedExplicitly, for: pattern) }
         try controller.load(context)
-        let item = InstalledExtension(id: folder.lastPathComponent, context: context)
+        let item = InstalledExtension(id: id, context: context)
         installed.removeAll { $0.id == item.id }
         installed.append(item)
         return item
@@ -142,7 +158,37 @@ final class ExtensionManager: NSObject, ObservableObject, WKWebExtensionControll
         try await load(destination)
     }
 
+    /// Turns on a Safari extension from an app on this Mac. It runs from inside its app; nothing is copied out.
+    func enableSafari(_ bundle: SafariExtensionBundle, confirm: Bool = true) async {
+        do {
+            guard let appex = Bundle(url: bundle.url) else { throw CocoaError(.fileNoSuchFile) }
+            let webExtension = try await WKWebExtension(appExtensionBundle: appex)
+            guard !confirm || confirmInstall(webExtension) else { return }
+            let id = "safari:\(bundle.identifier)"
+            if let existing = installed.first(where: { $0.id == id }) { try? controller.unload(existing.context) }
+            _ = try activate(webExtension, id: id)
+            safariEnabled[bundle.identifier] = bundle.url.path
+            saveSafariList()
+        } catch { lastError = "Couldn't turn on \(bundle.name): \(error.localizedDescription)" }
+    }
+
+    /// Turns a Safari extension off. Its app stays exactly as it was.
+    func disableSafari(_ identifier: String) {
+        if let item = installed.first(where: { $0.id == "safari:\(identifier)" }) {
+            try? controller.unload(item.context)
+            installed.removeAll { $0.id == item.id }
+        }
+        safariEnabled.removeValue(forKey: identifier)
+        saveSafariList()
+    }
+
+    private func saveSafariList() {
+        try? FileManager.default.createDirectory(at: safariListFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? JSONEncoder().encode(safariEnabled).write(to: safariListFile, options: .atomic)
+    }
+
     func uninstall(_ item: InstalledExtension) {
+        if item.id.hasPrefix("safari:") { disableSafari(String(item.id.dropFirst(7))); return }
         try? controller.unload(item.context)
         try? FileManager.default.removeItem(at: directory.appendingPathComponent(item.id))
         installed.removeAll { $0.id == item.id }

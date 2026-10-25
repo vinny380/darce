@@ -307,11 +307,12 @@ private struct InstallExtensionSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var link = ""
     @State private var working = false
+    @State private var safari: [SafariExtensionBundle]?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Add an Extension").font(.title3.bold())
-            Text("Most Chrome extensions work. Paste a Chrome Web Store link, or add an unpacked extension folder.")
+            Text("Paste a Chrome Web Store link, add an unpacked extension folder, or turn on a Safari extension from an app on your Mac.")
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             TextField("https://chromewebstore.google.com/detail/…", text: $link).textFieldStyle(.roundedBorder).onSubmit(add)
             if let error = manager.lastError { Text(error).font(.caption).foregroundStyle(.red) }
@@ -326,8 +327,35 @@ private struct InstallExtensionSheet: View {
                 Button(working ? "Adding…" : "Add", action: add).keyboardShortcut(.defaultAction)
                     .disabled(working || CRXFile.extensionID(from: link) == nil)
             }
+            Divider()
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Safari Extensions on this Mac").font(.headline)
+                if let safari {
+                    if safari.isEmpty {
+                        Text("None found. Safari extensions come with apps from the App Store; install one and it shows up here.")
+                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    ForEach(safari) { item in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(item.name)
+                                Text("From \(item.appName)").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if manager.enabledSafariIDs.contains(item.identifier) {
+                                Button("Turn Off") { manager.disableSafari(item.identifier) }
+                            } else {
+                                Button("Turn On") { Task { await manager.enableSafari(item) } }
+                            }
+                        }
+                    }
+                } else {
+                    ProgressView().controlSize(.small)
+                }
+            }
         }
         .padding(20).frame(width: 520)
+        .task { safari = await Task.detached { SafariExtensions.installed() }.value }
     }
 
     private func add() {

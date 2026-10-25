@@ -141,3 +141,32 @@ func runImportExtensionSmoke() async -> [String: Bool] {
     return ["import_extension_from_files_without_prompt": result.installed == 1 && installed != nil && result.skipped.isEmpty,
             "import_extension_unticked_not_installed": skippedUnticked]
 }
+
+/// A Safari extension from an app on the Mac turns on in place (nothing copied out of the app), comes back on the
+/// next launch, and turning it off leaves the app untouched.
+@MainActor
+func runSafariExtensionSmoke() async -> [String: Bool] {
+    guard #available(macOS 15.4, *), let manager = ExtensionManager.shared else { return ["safari_extension_turns_on_and_off": true] }
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("darce-safari-ext-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let appex = folder.appendingPathComponent("Shield.app/Contents/PlugIns/Shield Extension.appex/Contents")
+    try? FileManager.default.createDirectory(at: appex.appendingPathComponent("Resources"), withIntermediateDirectories: true)
+    let plist: [String: Any] = ["CFBundleIdentifier": "io.darce.smoke.shield", "CFBundleDisplayName": "Shield Extension",
+                                "CFBundlePackageType": "XPC!", "CFBundleExecutable": "Shield Extension",
+                                "NSExtension": ["NSExtensionPointIdentifier": SafariExtensions.extensionPoint]]
+    try? PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: appex.appendingPathComponent("Info.plist"))
+    try? Data(#"{"manifest_version":3,"name":"Shield","version":"1.0"}"#.utf8).write(to: appex.appendingPathComponent("Resources/manifest.json"))
+    // WebKit checks a Safari extension's code signature, as it would for a real app's; sign the fixture ad hoc.
+    let sign = Process()
+    sign.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+    sign.arguments = ["--force", "--sign", "-", appex.deletingLastPathComponent().path]
+    try? sign.run()
+    sign.waitUntilExit()
+    guard let bundle = SafariExtensions.installed(in: [folder]).first else { return ["safari_extension_found": false] }
+    await manager.enableSafari(bundle, confirm: false)
+    let on = manager.installed.contains { $0.id == "safari:io.darce.smoke.shield" } && manager.enabledSafariIDs.contains(bundle.identifier)
+    manager.disableSafari(bundle.identifier)
+    let off = !manager.installed.contains { $0.id == "safari:io.darce.smoke.shield" } && !manager.enabledSafariIDs.contains(bundle.identifier)
+        && FileManager.default.fileExists(atPath: appex.appendingPathComponent("Resources/manifest.json").path)
+    return ["safari_extension_turns_on_in_place": on && manager.lastError == nil, "safari_extension_turns_off_without_touching_app": off]
+}
