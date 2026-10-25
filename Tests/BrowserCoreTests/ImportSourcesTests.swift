@@ -96,3 +96,34 @@ private func chromeWithCookies(_ home: URL, profiles: [String]) throws -> URL {
     #expect(result.cookies.isEmpty)
     #expect(result.skipped == ["Cookies: you didn't allow access to Google Chrome's Safe Storage"])
 }
+
+@Test func nonArcProfilesSuggestTheirMostVisitedSitesAsFavorites() throws {
+    let home = try TemporaryDirectory()
+    let chrome = support(home.url).appendingPathComponent("Google/Chrome")
+    try ChromiumFixture.localState([("Default", "Me")], at: chrome)
+    let now = Date()
+    // visit counts: github 9 (over two pages), mail 5, news 1; seven more hosts with 2 each.
+    var rows: [(url: String, title: String, at: Date, count: Int)] = [
+        ("https://github.com/a", "A", now, 5), ("https://github.com/b", "B", now, 4),
+        ("https://mail.example/", "Mail", now, 5), ("https://news.example/", "News", now, 1),
+    ]
+    for i in 0..<7 { rows.append(("https://site\(i).example/", "S\(i)", now.addingTimeInterval(Double(-i)), 2)) }
+    try ChromiumFixture.history(counted: rows, in: chrome.appendingPathComponent("Default"))
+    let profile = try #require(try ImportSources.read(.chrome, home: home.url).first)
+    let hosts = profile.favorites.compactMap { if case .tab(_, _, let url) = $0 { url.host } else { nil } }
+    #expect(hosts.count == 6)
+    #expect(Array(hosts.prefix(2)) == ["github.com", "mail.example"])
+    #expect(!hosts.contains("news.example"))
+    #expect(profile.favorites.allSatisfy { if case .tab(let key, _, _) = $0 { key.hasPrefix("chrome:Default:fav:") } else { false } })
+}
+
+@Test func arcProfilesKeepTheirOwnFavorites() throws {
+    let home = try TemporaryDirectory()
+    let arc = support(home.url).appendingPathComponent("Arc")
+    try ChromiumFixture.localState([("Default", "Default")], at: arc.appendingPathComponent("User Data"))
+    try ArcSidebarFixture.standard().data().write(to: arc.appendingPathComponent("StorableSidebar.json"))
+    try ChromiumFixture.history(counted: [("https://busy.example/", "Busy", Date(), 50)], in: arc.appendingPathComponent("User Data/Default"))
+    let main = try #require(try ImportSources.read(.arc, home: home.url).first { $0.key == "arc:Default" })
+    let titles = main.favorites.compactMap { if case .tab(_, let title, _) = $0 { title } else { nil } }
+    #expect(titles == ["Calendar", "Chat"])
+}

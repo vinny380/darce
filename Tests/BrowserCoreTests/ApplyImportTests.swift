@@ -138,6 +138,7 @@ private func title(_ state: BrowserState, _ id: UUID?) -> String? { state.tabs.f
     var state = BrowserState()
     var options = ImportOptions()
     options.spacesAndTabs = false
+    options.favorites = false
     options.history = false
     let outcome = state.applyImport([arcProfile(), chromeProfile()], from: .arc, into: .newProfiles, options: options)
     #expect(state.tabs.filter { $0.title == "Mail" || $0.title == "Calendar" }.isEmpty)
@@ -204,4 +205,13 @@ private func title(_ state: BrowserState, _ id: UUID?) -> String? { state.tabs.f
     #expect(outcome.profileIDs["arc:Default"] == state.profiles[1].id)
     #expect(outcome.profileIDs["chrome:Default"] == state.profiles[2].id)
     #expect(outcome.newProfileIDs == [state.profiles[1].id, state.profiles[2].id])
+}
+
+@Test func favoritesOptionControlsFavoritesForEverySource() throws {
+    var state = BrowserState()
+    var options = ImportOptions()
+    options.favorites = false
+    _ = state.applyImport([arcProfile()], from: .arc, into: .newProfiles, options: options)
+    #expect(!state.tabs.contains { $0.kind == .favorite })
+    #expect(state.spaces.map(\.name) == ["Work", "Home"])
 }

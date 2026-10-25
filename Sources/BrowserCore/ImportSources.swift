@@ -59,6 +59,10 @@ public enum ImportSources {
             catch { profiles[index].skipped.append("History from \(profiles[index].name): \(error.localizedDescription)") }
             do { profiles[index].bookmarks = try ChromiumReader.bookmarks(profile: directory, keyPrefix: profiles[index].key, skipped: &profiles[index].skipped) }
             catch { profiles[index].skipped.append("Bookmarks from \(profiles[index].name): \(error.localizedDescription)") }
+            // Browsers without Favorites get the sites the person visits most, the way Arc suggested them.
+            if browser != .arc, profiles[index].favorites.isEmpty {
+                profiles[index].favorites = suggestedFavorites(profiles[index].history, keyPrefix: profiles[index].key)
+            }
             let profile = profiles[index]
             let pages = (profile.spaces.flatMap { $0.pinned + $0.today } + profile.favorites + profile.bookmarks).flatMap(\.urls)
             profiles[index].icons = ChromiumReader.icons(profile: directory, pages: pages)
@@ -67,6 +71,21 @@ public enum ImportSources {
         }
         return profiles.filter {
             !($0.spaces.isEmpty && $0.favorites.isEmpty && $0.bookmarks.isEmpty && $0.history.isEmpty && $0.cookieCount == 0 && $0.extensions.isEmpty)
+        }
+    }
+
+    /// The 6 most-visited sites (all their pages counted together), each once, as Favorites.
+    static func suggestedFavorites(_ history: [ImportedVisit], keyPrefix: String) -> [ImportedItem] {
+        var visits: [String: Int] = [:], latest: [String: Date] = [:]
+        for visit in history {
+            guard var host = visit.url.host?.lowercased() else { continue }
+            if host.hasPrefix("www.") { host.removeFirst(4) }
+            visits[host, default: 0] += visit.visitCount
+            latest[host] = max(latest[host] ?? .distantPast, visit.visitedAt)
+        }
+        let top = visits.keys.sorted { visits[$0]! != visits[$1]! ? visits[$0]! > visits[$1]! : latest[$0]! > latest[$1]! }.prefix(6)
+        return top.compactMap { host in
+            URL(string: "https://\(host)/").map { .tab(key: "\(keyPrefix):fav:\(host)", title: host, url: $0) }
         }
     }
 

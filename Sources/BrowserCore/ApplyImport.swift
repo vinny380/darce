@@ -8,6 +8,7 @@ public enum ImportDestination: Equatable, Sendable {
 
 public struct ImportOptions: Equatable, Sendable {
     public var spacesAndTabs = true
+    public var favorites = true
     public var bookmarks = true
     public var history = true
     public var cookies = true
@@ -94,8 +95,8 @@ extension BrowserState {
                                         options: ImportOptions, starter: Set<UUID>, reusedStarterProfile: inout Bool,
                                         outcome: inout ImportOutcome) {
         let wantsSpaces = options.spacesAndTabs
-            && (hasNew(source.spaces.flatMap { [ImportedItem.folder(key: $0.key, title: "", children: $0.pinned + $0.today)] })
-                || hasNew(source.favorites))
+            && hasNew(source.spaces.flatMap { [ImportedItem.folder(key: $0.key, title: "", children: $0.pinned + $0.today)] })
+            || options.favorites && hasNew(source.favorites)
         let wantsBookmarks = options.bookmarks && hasNew(source.bookmarks)
         let wantsHistory = options.history && !source.history.isEmpty
         let wantsCookies = options.cookies && source.cookieCount > 0
@@ -157,7 +158,7 @@ extension BrowserState {
             note(id, &outcome)
             return id
         }
-        if options.spacesAndTabs, hasNew(source.favorites), let space = homeSpace(&self, &outcome) {
+        if options.favorites, hasNew(source.favorites), let space = homeSpace(&self, &outcome) {
             importItems(source.favorites, kind: .favorite, space: space, folder: nil, counter: "favorites", outcome: &outcome)
         }
         if wantsBookmarks, let space = homeSpace(&self, &outcome),

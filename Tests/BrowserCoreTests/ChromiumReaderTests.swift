@@ -25,6 +25,17 @@ enum ChromiumFixture {
         ["type": "folder", "name": name, "children": children, "guid": guid]
     }
 
+    static func history(counted rows: [(url: String, title: String, at: Date, count: Int)], in profile: URL) throws {
+        try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+        var db: OpaquePointer?
+        guard sqlite3_open(profile.appendingPathComponent("History").path, &db) == SQLITE_OK else { throw CocoaError(.fileWriteUnknown) }
+        defer { sqlite3_close(db) }
+        sqlite3_exec(db, "CREATE TABLE urls(id INTEGER PRIMARY KEY, url TEXT, title TEXT, visit_count INTEGER, last_visit_time INTEGER)", nil, nil, nil)
+        for row in rows {
+            sqlite3_exec(db, "INSERT INTO urls(url, title, visit_count, last_visit_time) VALUES('\(row.url)', '\(row.title)', \(row.count), \(chromeTime(row.at)))", nil, nil, nil)
+        }
+    }
+
     /// Creates `History` with Chromium's `urls` table. Returns the open handle when `keepOpenInWAL`, else nil.
     @discardableResult
     static func history(_ rows: [(url: String, title: String, at: Date)], in profile: URL, keepOpenInWAL: Bool = false) throws -> OpaquePointer? {

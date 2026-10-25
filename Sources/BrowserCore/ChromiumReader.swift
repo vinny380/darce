@@ -61,7 +61,7 @@ public enum ChromiumReader {
             let epochOffset = 11_644_473_600.0
             let cutoff = Int64((now.timeIntervalSince1970 - maxAge + epochOffset) * 1_000_000)
             var statement: OpaquePointer?
-            let sql = "SELECT url, title, last_visit_time FROM urls WHERE last_visit_time > ? ORDER BY last_visit_time DESC LIMIT ?"
+            let sql = "SELECT url, title, last_visit_time, visit_count FROM urls WHERE last_visit_time > ? ORDER BY last_visit_time DESC LIMIT ?"
             guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { throw ReadError.unreadableDatabase }
             defer { sqlite3_finalize(statement) }
             sqlite3_bind_int64(statement, 1, cutoff)
@@ -77,7 +77,8 @@ public enum ChromiumReader {
                 let title = sqlite3_column_text(statement, 1).map { String(cString: $0) } ?? ""
                 let seconds = Double(sqlite3_column_int64(statement, 2)) / 1_000_000 - epochOffset
                 visits.append(ImportedVisit(url: url, title: title.isEmpty ? url.absoluteString : title,
-                                            visitedAt: Date(timeIntervalSince1970: seconds)))
+                                            visitedAt: Date(timeIntervalSince1970: seconds),
+                                            visitCount: max(1, Int(sqlite3_column_int64(statement, 3)))))
             }
             guard step == SQLITE_ROW || step == SQLITE_DONE else { throw ReadError.unreadableDatabase }
             return visits

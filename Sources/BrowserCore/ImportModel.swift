@@ -28,8 +28,12 @@ public struct ImportedVisit: Equatable, Sendable {
     public var url: URL
     public var title: String
     public var visitedAt: Date
+    /// How often the page was visited (for suggesting Favorites).
+    public var visitCount: Int
 
-    public init(url: URL, title: String, visitedAt: Date) { self.url = url; self.title = title; self.visitedAt = visitedAt }
+    public init(url: URL, title: String, visitedAt: Date, visitCount: Int = 1) {
+        self.url = url; self.title = title; self.visitedAt = visitedAt; self.visitCount = visitCount
+    }
 }
 
 /// An extension the person installed from the Chrome Web Store.
