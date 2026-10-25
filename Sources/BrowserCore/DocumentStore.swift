@@ -5,6 +5,33 @@ public enum DocumentKind: String, Codable, CaseIterable, Sendable { case note, e
 public enum DocumentCardContent: Codable, Equatable, Sendable {
     case text(String)
     case capture(filename: String, altText: String)
+    // Arc's Easel drawing tools. Points are relative to the card's origin; colors are "#RRGGBB".
+    case shape(ShapeKind, color: String)
+    case arrow(from: DrawingPoint, to: DrawingPoint, color: String)
+    case stroke([DrawingPoint], color: String)
+
+    /// Drawn items can be thin (a straight arrow has no height); text and images keep a readable minimum.
+    var isDrawing: Bool {
+        switch self {
+        case .shape, .arrow, .stroke: true
+        case .text, .capture: false
+        }
+    }
+
+    var color: String? {
+        switch self {
+        case .shape(_, let color), .arrow(_, _, let color), .stroke(_, let color): color
+        case .text, .capture: nil
+        }
+    }
+}
+
+public enum ShapeKind: String, Codable, Sendable { case rectangle, ellipse }
+
+public struct DrawingPoint: Codable, Equatable, Sendable {
+    public var x: Double
+    public var y: Double
+    public init(x: Double, y: Double) { self.x = x; self.y = y }
 }
 
 public struct DocumentCard: Identifiable, Codable, Equatable, Sendable {
@@ -28,7 +55,7 @@ public struct BrowserDocument: Identifiable, Codable, Equatable, Sendable {
     public internal(set) var cards: [DocumentCard]
 }
 
-public enum DocumentStoreError: Error, LocalizedError {
+public enum DocumentStoreError: Error, LocalizedError, Equatable {
     case unsupportedSchema(Int), invalidRecords, notFound, wrongKind, invalidPNG
 
     public var errorDescription: String? {
@@ -144,6 +171,30 @@ public struct DocumentStore: Sendable {
         return id
     }
 
+    /// Places a text or drawn item at a position (images go through `addCaptureCard`, which stores the PNG).
+    @discardableResult
+    public mutating func addCard(_ content: DocumentCardContent, documentID: UUID, profileID: UUID,
+                                 x: Double, y: Double, width: Double, height: Double) throws -> UUID {
+        if case .capture = content { throw DocumentStoreError.wrongKind }
+        let id = UUID()
+        try modify(documentID, profileID: profileID) { document in
+            guard document.kind == .easel else { throw DocumentStoreError.wrongKind }
+            document.cards.append(DocumentCard(id: id, content: content, x: x, y: y, width: width, height: height))
+        }
+        return id
+    }
+
+    /// Removes an item; an image's file goes with it.
+    public mutating func deleteCard(_ cardID: UUID, documentID: UUID, profileID: UUID) throws {
+        var removedFile: String?
+        try modify(documentID, profileID: profileID) { document in
+            guard let index = document.cards.firstIndex(where: { $0.id == cardID }) else { throw DocumentStoreError.notFound }
+            if case .capture(let filename, _) = document.cards[index].content { removedFile = filename }
+            document.cards.remove(at: index)
+        }
+        if let removedFile { try? FileManager.default.removeItem(at: imagesURL.appendingPathComponent(removedFile)) }
+    }
+
     public mutating func updateCard(_ cardID: UUID, documentID: UUID, profileID: UUID,
                                     x: Double, y: Double, width: Double, height: Double) throws {
         try modify(documentID, profileID: profileID) { document in
@@ -186,6 +237,10 @@ public struct DocumentStore: Sendable {
                 case .capture(_, let altText):
                     let bytes = try imageData(documentID: id, cardID: card.id, profileID: profileID)
                     content = "<img src=\"data:image/png;base64,\(bytes.base64EncodedString())\" alt=\"\(Self.escape(altText))\">"
+                case .shape, .arrow, .stroke:
+                    // Colors are validated "#RRGGBB" and points are numbers, so this SVG carries no page input.
+                    cards.append("<svg class=\"drawing\" style=\"left:\(card.x)px;top:\(card.y)px\" width=\"\(card.width + 8)\" height=\"\(card.height + 8)\">\(Self.svg(card))</svg>")
+                    continue
                 }
                 cards.append("<section class=\"card\" style=\"left:\(card.x)px;top:\(card.y)px;width:\(card.width)px;height:\(card.height)px\">\(content)</section>")
             }
@@ -194,7 +249,7 @@ public struct DocumentStore: Sendable {
         return """
         <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
         <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
-        <title>\(Self.escape(value.title))</title><style>body{font:16px system-ui,sans-serif;background:#f3f3f5;color:#171717;margin:24px}h1{font-size:24px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;margin:0}.note{max-width:800px;margin:auto;padding:32px;background:white}.note h1{margin-top:0}.easel{position:relative}.card{position:absolute;box-sizing:border-box;overflow:auto;padding:16px;background:white;border:1px solid #ddd;border-radius:12px}.card img{display:block;width:100%;height:100%;object-fit:contain}</style></head><body>\(body)</body></html>
+        <title>\(Self.escape(value.title))</title><style>body{font:16px system-ui,sans-serif;background:#f3f3f5;color:#171717;margin:24px}h1{font-size:24px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;margin:0}.note{max-width:800px;margin:auto;padding:32px;background:white}.note h1{margin-top:0}.easel{position:relative}.card{position:absolute;box-sizing:border-box;overflow:auto;padding:16px;background:white;border:1px solid #ddd;border-radius:12px}.card img{display:block;width:100%;height:100%;object-fit:contain}.drawing{position:absolute;overflow:visible}</style></head><body>\(body)</body></html>
         """
     }
 
@@ -242,15 +297,41 @@ public struct DocumentStore: Sendable {
                   document.trashedAt.map({ $0.timeIntervalSince1970.isFinite && $0 >= document.createdAt }) ?? true,
                   document.kind == .note ? document.cards.isEmpty : document.text.isEmpty else { throw DocumentStoreError.invalidRecords }
             for card in document.cards {
+                let (minWidth, minHeight): (Double, Double) = card.content.isDrawing ? (0, 0) : (120, 80)
                 guard identities.insert(card.id).inserted,
                       [card.x, card.y, card.width, card.height].allSatisfy(\.isFinite),
                       (0...20_000).contains(card.x), (0...20_000).contains(card.y),
-                      (120...4000).contains(card.width), (80...4000).contains(card.height) else { throw DocumentStoreError.invalidRecords }
+                      (minWidth...4000).contains(card.width), (minHeight...4000).contains(card.height),
+                      card.content.color.map(Self.isHexColor) ?? true else { throw DocumentStoreError.invalidRecords }
+                if case .stroke(let points, _) = card.content {
+                    guard points.count <= 20_000, points.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else { throw DocumentStoreError.invalidRecords }
+                }
                 if case .capture(let filename, _) = card.content {
                     guard filename == card.id.uuidString + ".png" else { throw DocumentStoreError.invalidRecords }
                 }
             }
         }
+    }
+
+    private static func svg(_ card: DocumentCard) -> String {
+        let stroke = "fill=\"none\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\""
+        switch card.content {
+        case .shape(.rectangle, let color):
+            return "<rect x=\"2\" y=\"2\" width=\"\(card.width)\" height=\"\(card.height)\" rx=\"8\" stroke=\"\(color)\" \(stroke)/>"
+        case .shape(.ellipse, let color):
+            return "<ellipse cx=\"\(card.width / 2 + 2)\" cy=\"\(card.height / 2 + 2)\" rx=\"\(card.width / 2)\" ry=\"\(card.height / 2)\" stroke=\"\(color)\" \(stroke)/>"
+        case .arrow(let from, let to, let color):
+            return "<line x1=\"\(from.x + 2)\" y1=\"\(from.y + 2)\" x2=\"\(to.x + 2)\" y2=\"\(to.y + 2)\" stroke=\"\(color)\" \(stroke)/>"
+        case .stroke(let points, let color):
+            let path = points.enumerated().map { "\($0.offset == 0 ? "M" : "L")\($0.element.x + 2) \($0.element.y + 2)" }.joined(separator: " ")
+            return "<path d=\"\(path)\" stroke=\"\(color)\" \(stroke)/>"
+        case .text, .capture:
+            return ""
+        }
+    }
+
+    static func isHexColor(_ value: String) -> Bool {
+        value.count == 7 && value.first == "#" && value.dropFirst().allSatisfy(\.isHexDigit)
     }
 
     public static func validateCapturePNG(_ data: Data) throws {
