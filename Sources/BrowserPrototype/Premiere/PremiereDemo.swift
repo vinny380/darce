@@ -16,6 +16,10 @@ enum PremiereDemo {
             if let window = NSApp.windows.first(where: { $0.isVisible && $0.styleMask.contains(.titled) }) {
                 window.setContentSize(NSSize(width: 1280, height: 800))
                 window.center()
+                // Hidden windows get throttled and drop frames: float on top (over full-screen apps too) without taking focus.
+                window.level = .floating
+                window.collectionBehavior.formUnion([.canJoinAllSpaces, .fullScreenAuxiliary])
+                window.orderFrontRegardless()
             }
             let go = directory.appendingPathComponent("go")
             while !FileManager.default.fileExists(atPath: go.path) { try? await Task.sleep(for: .milliseconds(20)) }
