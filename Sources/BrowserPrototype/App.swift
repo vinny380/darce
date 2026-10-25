@@ -91,6 +91,7 @@ struct BrowserWindow: View {
     @State private var showArchive = false
     @State private var showNewSpace = false
     @State private var showNewFolder = false
+    @State private var fullScreen = false
     @State private var name = ""
     /// Horizontal travel of the Space's sidebar content; drives the slide and the theme cross-fade.
     @State private var spaceSlide: CGFloat = 0
@@ -187,6 +188,9 @@ struct BrowserWindow: View {
         slideIn(from: to > from ? sidebarWidth * 0.6 : -sidebarWidth * 0.6)
     }
 
+    /// Full screen with the sidebar hidden: only the page, edge to edge, like Arc.
+    private var bare: Bool { fullScreen && !model.sidebarVisible && !model.libraryOpen }
+
     var body: some View {
         ZStack(alignment: .top) {
             HStack(spacing: 0) {
@@ -223,7 +227,7 @@ struct BrowserWindow: View {
                         }
                 }
                 VStack(spacing: 0) {
-                    if !model.sidebarVisible {
+                    if !model.sidebarVisible && !bare {
                         HStack {
                             Button { model.sidebarVisible = true } label: { Image(systemName: "sidebar.left") }
                             Button { model.commandMode = .location } label: { Text(model.state.selectedTab?.url.host ?? "Search or Enter URL…") }
@@ -256,9 +260,9 @@ struct BrowserWindow: View {
                         }
                     } else { content }
                 }
-                .padding(.top, model.sidebarVisible ? 8 : 0)
-                .padding(.trailing, 8).padding(.bottom, 8)
-                .padding(.leading, model.sidebarVisible ? 0 : 8)
+                .padding(.top, model.sidebarVisible && !bare ? 8 : 0)
+                .padding(.trailing, bare ? 0 : 8).padding(.bottom, bare ? 0 : 8)
+                .padding(.leading, model.sidebarVisible || bare ? 0 : 8)
             }
             if !model.sidebarVisible && !model.libraryOpen { edgeSidebar }
             if let page = model.peekPage {
@@ -301,6 +305,7 @@ struct BrowserWindow: View {
         .preferredColorScheme(appearance.preferredColorScheme)
         .ignoresSafeArea(.container, edges: .top)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: model.sidebarVisible)
+        .background(FullScreenReader(isFullScreen: $fullScreen))
         .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: model.boostPanelOpen)
         // The sidebar's bottom-left button opens the Library, like Arc (it used to open an Archive sheet).
         .onChange(of: showArchive) { _, show in if show { showArchive = false; model.libraryOpen = true } }
@@ -421,7 +426,7 @@ struct BrowserWindow: View {
     @ViewBuilder private var content: some View {
         if let tab = model.state.selectedTab, let easel = tab.url.easelID {
             EaselCanvas(model: model, documents: model.documents, documentID: easel, tabID: tab.id)
-                .id(tab.id).clipShape(RoundedRectangle(cornerRadius: 10))
+                .id(tab.id).clipShape(RoundedRectangle(cornerRadius: bare ? 0 : 10))
         } else if let id = model.state.selectedTabID, let page = model.page(for: id) {
             VStack(spacing: 0) {
                 if model.isDeveloperModeOn {
@@ -429,7 +434,7 @@ struct BrowserWindow: View {
                     DeveloperBar(model: model, page: page, tint: Color(.sRGB, red: tint.red, green: tint.green, blue: tint.blue))
                 }
                 BrowserPane(page: page).id(id)
-            }.clipShape(RoundedRectangle(cornerRadius: 10))
+            }.clipShape(RoundedRectangle(cornerRadius: bare ? 0 : 10))
         } else {
             Button { model.commandMode = .newTab } label: {
                 VStack(spacing: 12) {
@@ -476,3 +481,31 @@ final class WebContainer: NSView {
     required init?(coder: NSCoder) { nil }
 }
 
+
+/// Whether this view's own window is in full screen (other windows don't count).
+private struct FullScreenReader: NSViewRepresentable {
+    @Binding var isFullScreen: Bool
+
+    func makeNSView(context: Context) -> ReaderView { ReaderView { isFullScreen = $0 } }
+    func updateNSView(_ view: ReaderView, context: Context) {}
+
+    final class ReaderView: NSView {
+        private let report: (Bool) -> Void
+        private var observers: [NSObjectProtocol] = []
+        init(report: @escaping (Bool) -> Void) { self.report = report; super.init(frame: .zero) }
+        required init?(coder: NSCoder) { nil }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            observers.forEach(NotificationCenter.default.removeObserver)
+            observers = []
+            guard let window else { return }
+            report(window.styleMask.contains(.fullScreen))
+            for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification] {
+                observers.append(NotificationCenter.default.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.report(window.styleMask.contains(.fullScreen)) }
+                })
+            }
+        }
+    }
+}
