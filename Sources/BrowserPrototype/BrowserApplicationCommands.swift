@@ -78,6 +78,9 @@ struct BrowserApplicationCommands: Commands {
                     Button("Network and Resources") { activeModel.openInspector(.resources) }
                 }.disabled(privateWindows.isPrivateWindowActive || activeModel.state.selectedTab == nil)
             }
+            CommandGroup(after: .help) {
+                Button("Show Welcome") { activeModel.showPremiere() }.disabled(privateWindows.isPrivateWindowActive)
+            }
             CommandGroup(before: .windowArrangement) {
                 Group {
                 Button("Pin / Unpin Tab") {

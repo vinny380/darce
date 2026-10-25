@@ -14,12 +14,16 @@ extension URL {
         return UUID(uuidString: lastPathComponent)
     }
 }
-enum LibraryPanel: String, Identifiable { case profiles, history, downloads, appearance, boosts, documents, browsingData, spaces, importBrowser, welcome; var id: String { rawValue } }
+enum LibraryPanel: String, Identifiable { case profiles, history, downloads, appearance, boosts, documents, browsingData, spaces, importBrowser; var id: String { rawValue } }
 
 @MainActor
 final class BrowserModel: ObservableObject {
     @Published private(set) var state: BrowserState
     @Published var errorMessage: String?
+    /// The first-launch welcome, while it's showing.
+    @Published var premiere: PremiereModel?
+    /// A short note near the sidebar ("We tidied up").
+    @Published var toast: BrowserToast?
     @Published var commandMode: CommandMode?
     var sidebarVisible: Bool {
         get { appearance.state.sidebarVisible }
@@ -440,7 +444,7 @@ final class BrowserModel: ObservableObject {
     }
     func archiveExpired(now: Date = Date()) {
         guard !isWindowClosed else { return }
-        do { _ = try workspace.store.autoArchive(windowID: windowID, settings: settings.state, now: now, protecting: workspace.displayedSplitTabIDs) }
+        do { noteArchived(try workspace.store.autoArchive(windowID: windowID, settings: settings.state, now: now, protecting: workspace.displayedSplitTabIDs).count) }
         catch { errorMessage = "Tabs could not be archived: \(error.localizedDescription)" }
     }
     func addSpace(_ name: String) {

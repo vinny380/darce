@@ -60,13 +60,16 @@ private struct GeneralSettings: View {
     }
 
     private static func isDefaultBrowser() -> Bool {
-        NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!)?.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL
+        BrowserModel.isDefaultBrowser
     }
 
     private func makeDefault() {
         // macOS asks the user to confirm; check again once it answers.
-        NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpenURLsWithScheme: "http") { _ in
-            DispatchQueue.main.async { isDefault = GeneralSettings.isDefaultBrowser() }
+        Task { @MainActor in
+            for scheme in ["http", "https"] {
+                try? await NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpenURLsWithScheme: scheme)
+            }
+            isDefault = GeneralSettings.isDefaultBrowser()
         }
     }
 }

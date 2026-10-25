@@ -37,8 +37,16 @@ struct BrowserPrototypeApp: App {
         importResult = directory.appendingPathComponent("import-result.json")
         let ephemeral = isSmoke && value("--network-smoke") == nil
         if #available(macOS 15.4, *) { ExtensionManager.shared = ExtensionManager(directory: directory) }
-        _model = StateObject(wrappedValue: BrowserModel(directory: directory, ephemeralWebsiteData: ephemeral,
-                                                       downloadsDirectory: isSmoke ? directory.appendingPathComponent("downloads") : nil))
+        let browserModel = BrowserModel(directory: directory, ephemeralWebsiteData: ephemeral,
+                                        downloadsDirectory: isSmoke ? directory.appendingPathComponent("downloads") : nil)
+        // The welcome is decided before the first frame, so the empty browser never flashes underneath it.
+        // `--onboarding-step <step>` forces it at a step (for screenshots).
+        let forcedStep = value("--onboarding-step").flatMap(OnboardingStep.init(rawValue:))
+        if !isSmoke, value("--import-from") == nil,
+           forcedStep != nil || OnboardingFlow.shouldShow(firstLaunch: browserModel.isFirstLaunch, settings: browserModel.settings.state) {
+            browserModel.showPremiere(resumeAt: forcedStep ?? browserModel.settings.state.onboardingStep)
+        }
+        _model = StateObject(wrappedValue: browserModel)
         windowLifecycleOutput = value("--window-lifecycle-output").map { URL(fileURLWithPath: $0) }
         smokeOutput = value("--smoke-output").map { URL(fileURLWithPath: $0) }
         if !isSmoke { ExternalLinkHandler.shared.install() }
@@ -70,9 +78,6 @@ struct BrowserPrototypeApp: App {
                         try? encoder.encode(report).write(to: importResult, options: .atomic)
                         NSApplication.shared.terminate(nil)
                     } else {
-                        if model.isFirstLaunch, !ImportSources.installed(home: FileManager.default.homeDirectoryForCurrentUser).isEmpty {
-                            model.panel = .welcome
-                        }
                         while !Task.isCancelled {
                             model.archiveExpired()
                             do { try await Task.sleep(for: .seconds(60)) } catch { break }
@@ -98,6 +103,8 @@ struct BrowserWindow: View {
     @State private var showNewSpace = false
     @State private var showNewFolder = false
     @State private var fullScreen = false
+    /// The sidebar arrives with a spring as the welcome dissolves.
+    @State private var sidebarArrived = true
     @State private var name = ""
     /// Horizontal travel of the Space's sidebar content; drives the slide and the theme cross-fade.
     @State private var spaceSlide: CGFloat = 0
@@ -209,6 +216,7 @@ struct BrowserWindow: View {
                                    spaceSlide: spaceSlide, spaceSlideProgress: slideProgress)
                         .frame(width: sidebarWidth)
                         .background(SpaceSwipeMonitor(onUpdate: handleSpaceSwipe))
+                        .offset(x: sidebarArrived ? 0 : -60).opacity(sidebarArrived ? 1 : 0)
                     Color.clear.frame(width: 5).contentShape(Rectangle())
                         .onHover { if $0 { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() } }
                         .gesture(DragGesture().onChanged { value in
@@ -312,6 +320,29 @@ struct BrowserWindow: View {
         .ignoresSafeArea(.container, edges: .top)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: model.sidebarVisible)
         .background(FullScreenReader(isFullScreen: $fullScreen))
+        .overlay(alignment: .bottomLeading) {
+            if let toast = model.toast {
+                ToastCard(toast: toast, dismiss: { withAnimation(.easeOut(duration: 0.2)) { model.toast = nil } },
+                          openSettings: { model.toast = nil; NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) })
+                    .padding(.leading, 16).padding(.bottom, 58)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .overlay {
+            if let premiere = model.premiere {
+                PremiereView(model: premiere)
+                    .ignoresSafeArea()
+                    .transition(.asymmetric(insertion: .identity,
+                                            removal: .modifier(active: StepPhase(x: 0, scale: 1.02, blur: 14, opacity: 0), identity: .settled)))
+                    .zIndex(100)
+            }
+        }
+        .onAppear { if model.premiere != nil { sidebarArrived = false } }
+        .onChange(of: model.premiere == nil) { _, gone in
+            if gone {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.55, dampingFraction: 0.86).delay(0.12)) { sidebarArrived = true }
+            } else { sidebarArrived = false }
+        }
         .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: model.boostPanelOpen)
         // The sidebar's bottom-left button opens the Library, like Arc (it used to open an Archive sheet).
         .onChange(of: showArchive) { _, show in if show { showArchive = false; model.libraryOpen = true } }
@@ -319,7 +350,6 @@ struct BrowserWindow: View {
         .sheet(item: $model.panel) { panel in
             switch panel {
             case .importBrowser: ImportSheet(model: model)
-            case .welcome: ImportSheet(model: model, welcome: true)
             case .browsingData:
                 BrowsingDataView(controller: model.browsingData, profileID: model.state.selectedProfileID,
                                  profileName: model.state.profiles.first(where: { $0.id == model.state.selectedProfileID })?.name ?? "Profile")

@@ -209,3 +209,29 @@ func runPremiereSmoke() -> [String: Bool] {
             && withNothing.welcomeSubtitle == "⌘T opens anything.",
     ]
 }
+
+/// Finishing, skipping and quitting partway through the welcome are all remembered; the first tidy-up is
+/// explained once.
+@MainActor
+func runPremiereLifecycleSmoke() -> [String: Bool] {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("darce-premiere-life-\(UUID().uuidString)")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let browser = BrowserModel(directory: directory, ephemeralWebsiteData: true)
+    let premiere = PremiereModel(browserModel: browser, installed: [], isDefaultBrowser: true, prefetched: [], music: false)
+    premiere.next()
+    let resumeSaved = browser.settings.state.onboardingStep == .theme
+    var finished = false
+    premiere.onFinish = { finished = true }
+    premiere.skipSetup()
+    let completed = browser.settings.state.onboardingCompleted && browser.settings.state.onboardingStep == nil && finished
+    browser.noteArchived(3)
+    let firstToast = browser.toast != nil && browser.settings.state.archiveExplained
+    browser.toast = nil
+    browser.noteArchived(2)
+    return [
+        "premiere_resume_step_saved": resumeSaved,
+        "premiere_completion_is_remembered": completed,
+        "skip_setup_lands_in_usable_browser": completed && !browser.state.spaces.isEmpty,
+        "first_archive_toast_once": firstToast && browser.toast == nil,
+    ]
+}

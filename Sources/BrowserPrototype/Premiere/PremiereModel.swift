@@ -306,6 +306,14 @@ final class PremiereModel: ObservableObject {
             self.outcome = outcome
             importing = false
             imported = true
+            // Skipped ahead while this ran: say how it went once it lands, so nothing is lost silently.
+            if finishing {
+                let parts = [("spaces", "Spaces"), ("tabs", "tabs"), ("favorites", "Favorites"), ("bookmarks", "bookmarks")]
+                    .compactMap { key, name in outcome.counts[key].flatMap { $0 > 0 ? "\($0) \(name)" : nil } }
+                let note = outcome.skipped.isEmpty ? "" : " \(outcome.skipped.count) things didn't come over."
+                browserModel.toast = BrowserToast(title: "Your \(browser.shortName) is in",
+                                                  message: (parts.isEmpty ? "Everything came over." : parts.joined(separator: ", ") + " came over.") + note)
+            }
             if let first = self.arcTints.first, self.tint == Self.defaultTint { self.tint = first }
         }
     }

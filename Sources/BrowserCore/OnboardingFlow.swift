@@ -29,6 +29,11 @@ public struct OnboardingFlow: Equatable, Sendable {
         }
     }
 
+    /// On a first launch, or to pick up where someone quit partway through; never once it's done.
+    public static func shouldShow(firstLaunch: Bool, settings: BrowserSettings) -> Bool {
+        !settings.onboardingCompleted && (firstLaunch || settings.onboardingStep != nil)
+    }
+
     public var index: Int { steps.firstIndex(of: current) ?? 0 }
 
     public mutating func next() {

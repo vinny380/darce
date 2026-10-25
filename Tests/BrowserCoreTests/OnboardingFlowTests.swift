@@ -58,3 +58,13 @@ import Testing
     let round = try JSONDecoder().decode(BrowserSettings.self, from: JSONEncoder().encode(changed))
     #expect(round.onboardingCompleted && round.onboardingStep == .theme)
 }
+
+@Test func welcomeShowsOnFirstLaunchOrToResumeOnly() {
+    var settings = BrowserSettings()
+    #expect(OnboardingFlow.shouldShow(firstLaunch: true, settings: settings))
+    #expect(!OnboardingFlow.shouldShow(firstLaunch: false, settings: settings))
+    settings.onboardingStep = .theme
+    #expect(OnboardingFlow.shouldShow(firstLaunch: false, settings: settings))
+    settings.onboardingCompleted = true
+    #expect(!OnboardingFlow.shouldShow(firstLaunch: true, settings: settings))
+}
