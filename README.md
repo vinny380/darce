@@ -1,20 +1,10 @@
 <p align="center">
-  <img src="Assets/AppIcon.png" alt="D’arce" width="128">
+  <img src=".github/assets/banner.png" alt="D’arce: Arc, rebuilt as a native Mac app. Open source." width="100%">
 </p>
 
 <p align="center">
-  <b>Arc, rebuilt as a native Mac app.</b><br>
-  <sub>Open source · Built on WebKit · macOS 14+ on Apple Silicon</sub>
-</p>
-
-<p align="center">
-  <a href="../../releases/latest"><b>Download for Mac</b></a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="#-build-from-source">Build from source</a>
-</p>
-
-<br>
-
-<p align="center">
-  <img src=".github/assets/hero.png" alt="D’arce’s welcome screen on a Mac desktop" width="100%">
+  <a href="../../releases/latest"><b>Download for Mac</b></a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="#-build-from-source">Build from source</a><br>
+  <sub>macOS 14+ on Apple Silicon · Built on WebKit · MIT</sub>
 </p>
 
 <p align="center">
