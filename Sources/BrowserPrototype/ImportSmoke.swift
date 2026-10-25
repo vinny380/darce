@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 import BrowserCore
 import Foundation
@@ -176,7 +177,21 @@ func runSafariExtensionSmoke() async -> [String: Bool] {
 @MainActor
 func runPremiereMusicSmoke() -> [String: Bool] {
     guard let level = try? PremiereMusic.renderOffline(seconds: 6) else { return ["premiere_music_renders_quietly_and_audibly": false] }
-    return ["premiere_music_renders_quietly_and_audibly": level.peakDBFS <= -18 && level.rmsDBFS > -50]
+    // The opening bloom swells in rather than jolting: its peak sits within 5 dB of the bar before it.
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent("darce-bloom-\(UUID().uuidString).caf")
+    defer { try? FileManager.default.removeItem(at: file) }
+    var gentle = false
+    if (try? PremiereMusic.renderOffline(seconds: 4, to: file)) != nil, let audio = try? AVAudioFile(forReading: file),
+       let buffer = AVAudioPCMBuffer(pcmFormat: audio.processingFormat, frameCapacity: AVAudioFrameCount(audio.length)),
+       (try? audio.read(into: buffer)) != nil, let samples = buffer.floatChannelData?[0] {
+        let rate = audio.processingFormat.sampleRate
+        let peak = { (from: Double, to: Double) in
+            20 * log10(Double((Int(from * rate)..<Int(to * rate)).map { abs(samples[$0]) }.max() ?? 0) + 1e-9)
+        }
+        gentle = peak(2.6, 3.6) - peak(2.0, 2.6) <= 5
+    }
+    return ["premiere_music_renders_quietly_and_audibly": level.peakDBFS <= -18 && level.rmsDBFS > -50,
+            "premiere_music_bloom_swells_not_jolts": gentle]
 }
 
 /// Every welcome step lays out, and its words fit the browser being imported (or none).

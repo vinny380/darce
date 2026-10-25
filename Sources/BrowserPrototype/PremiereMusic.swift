@@ -201,7 +201,8 @@ final class LofiSynth: @unchecked Sendable {
         let current = chord(at: eighth / 8)
         switch cue {
         case .bloom:
-            for (i, note) in Self.chords[current].enumerated() { play(.keys, note + 12, velocity: 0.55, pan: Double(i - 2) * 0.15, delay: Double(i) * 0.045) }
+            // A soft roll, not a strike: it swells in under the pad.
+            for (i, note) in Self.chords[current].enumerated() { play(.keys, note + 12, velocity: 0.32, pan: Double(i - 2) * 0.15, delay: Double(i) * 0.09) }
         case .tick(let n):
             let tones = Self.chords[current]
             play(.keys, tones[n % tones.count] + 24 + 12 * (n / tones.count), velocity: 0.32, pan: 0.2)
