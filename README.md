@@ -1,33 +1,25 @@
 <p align="center">
-  <img src="Assets/AppIcon.png" alt="D'arce app icon: a dawn rising over a horizon" width="140">
+  <img src="Assets/AppIcon.png" alt="D’arce" width="128">
 </p>
 
 <p align="center">
-  <img src=".github/assets/banner.svg" alt="D'arce: a native macOS browser inspired by Arc" width="100%">
+  <b>Arc, rebuilt as a native Mac app.</b><br>
+  <sub>Open source · Built on WebKit · macOS 14+ on Apple Silicon</sub>
 </p>
 
 <p align="center">
-  <a href="../../releases/latest"><img alt="Download for macOS" src="https://img.shields.io/badge/Download-macOS-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
+  <a href="../../releases/latest"><b>Download for Mac</b></a>&nbsp;&nbsp;·&nbsp;&nbsp;<a href="#-build-from-source">Build from source</a>
+</p>
+
+<br>
+
+<p align="center">
+  <img src=".github/assets/hero.png" alt="D’arce’s welcome screen on a Mac desktop" width="100%">
 </p>
 
 <p align="center">
-  <img alt="Status: alpha" src="https://img.shields.io/badge/status-alpha-ff5c8a?style=flat-square">
-  <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-7c5cff?style=flat-square">
-  <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple%20Silicon-native-2ec5ff?style=flat-square">
-  <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-ff9f43?style=flat-square&logo=swift&logoColor=white">
-  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square">
+  <sub><i>Early days: some things are missing and some will break. Keep your old browser around for now.</i></sub>
 </p>
-
-<p align="center">
-  <b>Arc is going away. The ideas don't have to.</b><br>
-  Spaces, a sidebar that cleans itself up, split view and a command bar for everything,<br>
-  rebuilt from scratch in SwiftUI and AppKit. Open source, no account, no telemetry.
-</p>
-
-> [!WARNING]
-> **D'arce is a work in progress.** Things are missing and some things will break. Try it, report bugs, send PRs, but keep your old browser around for now.
-
-<!-- Hero screenshot goes here: docs/hero.png -->
 
 ## ✦ What's inside
 
