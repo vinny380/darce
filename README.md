@@ -68,6 +68,14 @@
   </tr>
 </table>
 
+<br>
+
+<p align="center">
+  <img src=".github/assets/onboarding.webp" alt="D’arce’s welcome: bringing Spaces, tabs and history over from Arc, picking a color, then opening the browser" width="100%">
+  <br>
+  <sub>The welcome: bring your Arc over, pick a color, and you’re home.</sub>
+</p>
+
 ## ⬇ Install
 
 > Requires an **Apple Silicon Mac** running **macOS 14** or later.
