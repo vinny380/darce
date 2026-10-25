@@ -84,6 +84,47 @@ public enum ChromiumReader {
         }
     }
 
+    /// Enabled extensions the person installed from the Chrome Web Store (not built-in, preinstalled, or unpacked ones),
+    /// by name. The list lives in `Secure Preferences` (sometimes `Preferences`) under `extensions.settings`.
+    public static func extensions(profile: URL) -> [ImportedExtension] {
+        var settings: [String: [String: Any]] = [:]
+        for file in ["Preferences", "Secure Preferences"] {
+            guard let data = try? Data(contentsOf: profile.appendingPathComponent(file)),
+                  let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let found = (root["extensions"] as? [String: Any])?["settings"] as? [String: Any] else { continue }
+            for (id, value) in found { if let entry = value as? [String: Any] { settings[id] = entry } }
+        }
+        return settings.compactMap { id, entry -> ImportedExtension? in
+            let disabled: Bool
+            if let reasons = entry["disable_reasons"] as? [Any] { disabled = !reasons.isEmpty }
+            else { disabled = (entry["disable_reasons"] as? Int ?? 0) != 0 }
+            guard id.count == 32, id.allSatisfy({ ("a"..."p").contains($0) }),
+                  entry["location"] as? Int == 1, entry["from_webstore"] as? Bool == true,
+                  entry["was_installed_by_default"] as? Bool != true, entry["was_installed_by_oem"] as? Bool != true,
+                  !disabled else { return nil }
+            var files: URL?
+            if let path = entry["path"] as? String, !path.hasPrefix("/"), !path.contains("..") {
+                let folder = profile.appendingPathComponent("Extensions").appendingPathComponent(path)
+                if FileManager.default.fileExists(atPath: folder.appendingPathComponent("manifest.json").path) { files = folder }
+            }
+            let manifest = files.flatMap { try? JSONSerialization.jsonObject(with: Data(contentsOf: $0.appendingPathComponent("manifest.json"))) as? [String: Any] }
+                ?? entry["manifest"] as? [String: Any]
+            return ImportedExtension(id: id, name: extensionName(manifest, files: files) ?? id, files: files)
+        }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// The manifest's name, with `__MSG_key__` looked up in the default locale's messages.
+    private static func extensionName(_ manifest: [String: Any]?, files: URL?) -> String? {
+        guard let name = manifest?["name"] as? String, !name.isEmpty else { return nil }
+        guard name.hasPrefix("__MSG_"), name.hasSuffix("__") else { return name }
+        let key = String(name.dropFirst(6).dropLast(2)).lowercased()
+        let locale = manifest?["default_locale"] as? String ?? "en"
+        guard let files, let data = try? Data(contentsOf: files.appendingPathComponent("_locales/\(locale)/messages.json")),
+              let messages = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let match = messages.first { $0.key.lowercased() == key }?.value as? [String: Any]
+        return (match?["message"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
     /// How many cookies there are to bring over, without decrypting anything (for the import sheet).
     public static func cookieCount(profile: URL) -> Int {
         guard FileManager.default.fileExists(atPath: profile.appendingPathComponent("Cookies").path) else { return 0 }

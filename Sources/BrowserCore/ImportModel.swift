@@ -32,6 +32,16 @@ public struct ImportedVisit: Equatable, Sendable {
     public init(url: URL, title: String, visitedAt: Date) { self.url = url; self.title = title; self.visitedAt = visitedAt }
 }
 
+/// An extension the person installed from the Chrome Web Store.
+public struct ImportedExtension: Equatable, Sendable {
+    public var id: String
+    public var name: String
+    /// The unpacked extension in the browser's profile, used when the Web Store has no package for it.
+    public var files: URL?
+
+    public init(id: String, name: String, files: URL?) { self.id = id; self.name = name; self.files = files }
+}
+
 /// A cookie read from another browser, decrypted, ready to hand to WebKit.
 public struct ImportedCookie: Equatable, Sendable {
     public var domain: String
