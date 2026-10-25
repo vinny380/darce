@@ -32,7 +32,7 @@ struct AddressBar: View {
             HStack(spacing: 8) {
                 if url == nil { Image(systemName: "magnifyingglass").font(.system(size: 10)) }
                 Text((model.settings.state.showFullURL ? url?.absoluteString : url?.host.map(Self.trimmed)) ?? "Search or Enter URL…")
-                    .font(.system(size: 13, weight: .medium)).lineLimit(1)
+                    .font(.system(size: 13)).lineLimit(1)
                 Spacer(minLength: 0)
             }
             .frame(maxHeight: .infinity).contentShape(Rectangle())

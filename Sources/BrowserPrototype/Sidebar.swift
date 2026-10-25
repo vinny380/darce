@@ -66,10 +66,9 @@ struct BrowserSidebar: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 7) {
-                        SpaceIcon(icon: appearance.state.space(model.state.selectedSpaceID).icon)
-                            .font(.system(size: 11))
+                        // Like Arc: just the Space's name; its icon lives in the switcher at the bottom.
                         Text(model.state.spaces.first { $0.id == model.state.selectedSpaceID }?.name ?? "Space")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: 13, weight: .semibold))
                         Spacer()
                         if let space = model.state.spaces.first(where: { $0.id == model.state.selectedSpaceID }) {
                             Menu { spaceActions(space) } label: { Image(systemName: "ellipsis").font(.system(size: 11, weight: .semibold)) }
@@ -333,8 +332,8 @@ struct BrowserSidebar: View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: min(max(tabs.count, 1), 3)), spacing: 7) {
             ForEach(tabs) { tab in
                 SiteIcon(controller: model.favicons, url: tab.url, saved: model.state.savedFaviconPNG(forTab: tab.id),
-                         profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 24)
-                    .foregroundStyle(.primary.opacity(0.75)).frame(maxWidth: .infinity).frame(height: 50)
+                         profileID: model.state.profileID(forTab: tab.id) ?? model.state.selectedProfileID, size: 16)
+                    .foregroundStyle(.primary.opacity(0.75)).frame(maxWidth: .infinity).frame(height: 46)
                     .background(Palette.color(model.state.selectedTabID == tab.id ? "SidebarItemHovered" : "SidebarItemBackground", scheme: scheme), in: RoundedRectangle(cornerRadius: 11))
                     .contentShape(Rectangle()).onTapGesture { model.select(tab.id) }
                     .help(tab.title).accessibilityElement().accessibilityAddTraits(.isButton)
